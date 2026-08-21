@@ -1,0 +1,1048 @@
+<title>Ticket Booking Blueprint</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+
+<style>
+  /* ---------- tokens: light is the base, both dark states redefine ---------- */
+  :root {
+    --paper:      #E9EAEE;
+    --surface:    #FDFDFE;
+    --surface-2:  #F1F2F6;
+    --ink:        #14161C;
+    --ink-soft:   #3B404E;
+    --muted:      #656B7B;
+    --rule:       #D5D8E1;
+    --rule-strong:#A8AEBE;
+
+    --accent:     #9A6206;
+    --accent-ink: #FFFFFF;
+    --accent-wash:#F6EBD8;
+
+    --seat-free:  #1F7A69;
+    --seat-held:  #B4740E;
+    --seat-offer: #6244C4;
+    --seat-sold:  #7B8194;
+
+    --free-wash:  #DCEDE9;
+    --held-wash:  #F7E9CF;
+    --offer-wash: #E5DEF9;
+    --sold-wash:  #E2E4EA;
+
+    --sans:    "Instrument Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
+    --display: "Fraunces", "Iowan Old Style", Georgia, serif;
+    --mono:    "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+    --col: 68ch;
+    --shadow: 0 1px 2px rgb(20 22 28 / .05), 0 8px 24px -12px rgb(20 22 28 / .16);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:      #0E1117;
+      --surface:    #161A23;
+      --surface-2:  #1D222D;
+      --ink:        #E8EAF0;
+      --ink-soft:   #C2C7D4;
+      --muted:      #949BAC;
+      --rule:       #262C38;
+      --rule-strong:#454D5F;
+
+      --accent:     #E8A33D;
+      --accent-ink: #1A1206;
+      --accent-wash:#2B2213;
+
+      --seat-free:  #45BCA4;
+      --seat-held:  #E8A33D;
+      --seat-offer: #A791F2;
+      --seat-sold:  #6E7688;
+
+      --free-wash:  #12302B;
+      --held-wash:  #33260F;
+      --offer-wash: #241E3E;
+      --sold-wash:  #21252F;
+
+      --shadow: 0 1px 2px rgb(0 0 0 / .5), 0 10px 30px -14px rgb(0 0 0 / .8);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --paper:      #0E1117;
+    --surface:    #161A23;
+    --surface-2:  #1D222D;
+    --ink:        #E8EAF0;
+    --ink-soft:   #C2C7D4;
+    --muted:      #949BAC;
+    --rule:       #262C38;
+    --rule-strong:#454D5F;
+
+    --accent:     #E8A33D;
+    --accent-ink: #1A1206;
+    --accent-wash:#2B2213;
+
+    --seat-free:  #45BCA4;
+    --seat-held:  #E8A33D;
+    --seat-offer: #A791F2;
+    --seat-sold:  #6E7688;
+
+    --free-wash:  #12302B;
+    --held-wash:  #33260F;
+    --offer-wash: #241E3E;
+    --sold-wash:  #21252F;
+
+    --shadow: 0 1px 2px rgb(0 0 0 / .5), 0 10px 30px -14px rgb(0 0 0 / .8);
+  }
+
+  /* ---------- base ---------- */
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 17px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 1040px;
+    margin: 0 auto;
+    padding: 0 24px 96px;
+  }
+
+  .col { max-width: var(--col); }
+
+  p { margin: 0 0 1em; color: var(--ink-soft); }
+  p:last-child { margin-bottom: 0; }
+
+  a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+    border-radius: 3px;
+  }
+
+  code {
+    font-family: var(--mono);
+    font-size: .86em;
+    background: var(--surface-2);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: .08em .34em;
+  }
+
+  strong { color: var(--ink); font-weight: 600; }
+
+  /* ---------- masthead ---------- */
+  .masthead {
+    padding: 72px 0 40px;
+    display: grid;
+    gap: 40px;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: end;
+  }
+  @media (min-width: 860px) {
+    .masthead { grid-template-columns: minmax(0, 1fr) auto; }
+  }
+
+  .eyebrow {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 18px;
+  }
+
+  .masthead h1 {
+    font-family: var(--display);
+    font-optical-sizing: auto;
+    font-weight: 600;
+    font-size: clamp(46px, 8vw, 82px);
+    line-height: .96;
+    letter-spacing: -.025em;
+    margin: 0 0 20px;
+    text-wrap: balance;
+  }
+
+  .lede {
+    font-size: 19px;
+    line-height: 1.55;
+    max-width: 54ch;
+    color: var(--ink-soft);
+    margin: 0;
+  }
+
+  /* seat-map motif — doubles as the status legend */
+  .motif { display: grid; gap: 14px; justify-items: start; }
+  .motif-grid {
+    display: grid;
+    grid-template-columns: repeat(8, 20px);
+    gap: 6px;
+  }
+  .motif-grid span {
+    aspect-ratio: 1;
+    border-radius: 4px 4px 6px 6px;
+    background: var(--sold-wash);
+    border: 1px solid var(--rule-strong);
+  }
+  .motif-grid .s-free  { background: var(--free-wash);  border-color: var(--seat-free); }
+  .motif-grid .s-held  { background: var(--held-wash);  border-color: var(--seat-held); }
+  .motif-grid .s-offer { background: var(--offer-wash); border-color: var(--seat-offer); }
+  .motif-grid .s-sold  { background: var(--seat-sold);  border-color: var(--seat-sold); }
+  .motif-cap {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: .04em;
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 18px;
+    padding: 0;
+    margin: 0;
+    list-style: none;
+  }
+  .legend li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: .04em;
+    color: var(--muted);
+  }
+  .legend i {
+    width: 11px; height: 11px;
+    border-radius: 3px;
+    display: inline-block;
+    border: 1px solid;
+  }
+  .k-free  { background: var(--free-wash);  border-color: var(--seat-free); }
+  .k-held  { background: var(--held-wash);  border-color: var(--seat-held); }
+  .k-offer { background: var(--offer-wash); border-color: var(--seat-offer); }
+  .k-sold  { background: var(--seat-sold);  border-color: var(--seat-sold); }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 7px; margin: 28px 0 0; padding: 0; list-style: none; }
+  .chips li {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: .02em;
+    color: var(--ink-soft);
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    padding: 4px 11px;
+  }
+
+  .statusbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 28px;
+    border-top: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+    padding: 14px 0;
+    margin: 40px 0 0;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: .02em;
+  }
+  .statusbar b { color: var(--ink); font-weight: 500; }
+
+  /* ---------- sections ---------- */
+  section { padding: 68px 0 0; }
+
+  .sec-head { margin: 0 0 28px; }
+  .sec-head h2 {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: clamp(28px, 3.6vw, 38px);
+    line-height: 1.12;
+    letter-spacing: -.018em;
+    margin: 0 0 10px;
+    text-wrap: balance;
+  }
+  .sec-head p { max-width: var(--col); margin: 0; }
+
+  .rule { height: 1px; background: var(--rule); border: 0; margin: 0; }
+
+  /* ---------- cards ---------- */
+  .cards {
+    display: grid;
+    gap: 14px;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    padding: 20px 22px;
+    box-shadow: var(--shadow);
+  }
+  .card h3 {
+    font-size: 15px;
+    font-weight: 600;
+    margin: 0 0 8px;
+    color: var(--ink);
+    letter-spacing: -.005em;
+  }
+  .card p { font-size: 14.5px; line-height: 1.55; margin: 0; color: var(--muted); }
+  .card .where {
+    display: block;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--accent);
+    margin-top: 12px;
+    letter-spacing: .01em;
+  }
+
+  /* ---------- figures / diagrams ---------- */
+  figure {
+    margin: 0;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .scroller { overflow-x: auto; padding: 26px 24px 8px; }
+  .diagram { display: block; width: 100%; min-width: 660px; height: auto; }
+  .diagram text { font-family: var(--sans); }
+  figcaption {
+    border-top: 1px solid var(--rule);
+    padding: 13px 24px;
+    font-size: 13.5px;
+    color: var(--muted);
+    background: var(--surface-2);
+  }
+  figcaption b { color: var(--ink-soft); font-weight: 600; }
+
+  .box-label { font-size: 15px; font-weight: 600; }
+  .box-sub   { font-family: var(--mono); font-size: 11px; letter-spacing: .02em; }
+  .edge-label{ font-size: 12.5px; font-weight: 500; }
+
+  /* ---------- code ---------- */
+  .code {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+  .code-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 11px 18px;
+    border-bottom: 1px solid var(--rule);
+    background: var(--surface-2);
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .code-head .tag { font-weight: 500; }
+  .tag-bad  { color: #C0392B; }
+  .tag-good { color: var(--seat-free); }
+  .code pre {
+    margin: 0;
+    padding: 18px;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.66;
+    color: var(--ink-soft);
+    tab-size: 2;
+  }
+  .code pre b { color: var(--accent); font-weight: 500; }
+  .code pre i { color: var(--muted); font-style: normal; }
+
+  .pair { display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 900px) { .pair { grid-template-columns: 1fr 1fr; } }
+
+  /* ---------- steps (real sequence, so numbered) ---------- */
+  .steps { list-style: none; margin: 0; padding: 0; counter-reset: step; }
+  .steps > li {
+    counter-increment: step;
+    position: relative;
+    padding: 0 0 26px 54px;
+    border-left: 1px solid var(--rule);
+    margin-left: 15px;
+  }
+  .steps > li:last-child { border-left-color: transparent; padding-bottom: 0; }
+  .steps > li::before {
+    content: counter(step);
+    position: absolute;
+    left: -15px;
+    top: -2px;
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: var(--surface);
+    border: 1px solid var(--rule-strong);
+    color: var(--ink);
+    font-family: var(--mono);
+    font-size: 12.5px;
+    font-variant-numeric: tabular-nums;
+  }
+  .steps h3 {
+    font-size: 15.5px;
+    font-weight: 600;
+    margin: 3px 0 6px;
+  }
+  .steps p { font-size: 15px; margin: 0; }
+  .steps code { font-size: .85em; }
+
+  /* ---------- tables ---------- */
+  .tablewrap {
+    overflow-x: auto;
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+  }
+  table { border-collapse: collapse; width: 100%; min-width: 560px; font-size: 14.5px; }
+  th, td { text-align: left; padding: 12px 18px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  thead th {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 500;
+    background: var(--surface-2);
+  }
+  tbody tr:last-child td { border-bottom: 0; }
+  td.mono, th.mono { font-family: var(--mono); font-size: 12.5px; color: var(--ink); white-space: nowrap; }
+  td small { display: block; color: var(--muted); font-size: 13px; line-height: 1.45; margin-top: 3px; }
+
+  /* ---------- phase ladder ---------- */
+  .phases { display: grid; gap: 0; border: 1px solid var(--rule); border-radius: 12px; overflow: hidden; background: var(--surface); box-shadow: var(--shadow); }
+  .phase {
+    display: grid;
+    grid-template-columns: 58px minmax(0, 1fr);
+    gap: 0 18px;
+    padding: 16px 22px;
+    border-bottom: 1px solid var(--rule);
+    align-items: start;
+  }
+  .phase:last-child { border-bottom: 0; }
+  .phase-n {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 22px;
+    color: var(--rule-strong);
+    line-height: 1.3;
+  }
+  .phase h3 { margin: 0 0 3px; font-size: 15.5px; font-weight: 600; display: flex; flex-wrap: wrap; align-items: center; gap: 9px; }
+  .phase p { margin: 0; font-size: 14.5px; color: var(--muted); }
+  .phase.is-active { background: var(--accent-wash); }
+  .phase.is-active .phase-n { color: var(--accent); }
+  .flag {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 999px;
+    border: 1px solid;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .flag-graded { color: var(--seat-offer); border-color: var(--seat-offer); background: var(--offer-wash); }
+  .flag-now    { color: var(--accent);    border-color: var(--accent);    background: var(--surface); }
+  .flag-opt    { color: var(--muted);     border-color: var(--rule-strong); }
+
+  /* ---------- callout ---------- */
+  .callout {
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--accent);
+    background: var(--surface);
+    border-radius: 0 10px 10px 0;
+    padding: 18px 22px;
+  }
+  .callout h3 {
+    font-size: 12px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 8px;
+    font-family: var(--mono);
+    font-weight: 500;
+  }
+  .callout p { margin: 0; font-size: 15px; }
+
+  .stack { display: grid; gap: 16px; }
+  .stack-lg { display: grid; gap: 28px; }
+
+  /* ---------- rules list ---------- */
+  .rules { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  .rules li {
+    display: grid;
+    grid-template-columns: 26px minmax(0, 1fr);
+    gap: 12px;
+    font-size: 15px;
+    color: var(--ink-soft);
+    align-items: baseline;
+  }
+  .rules li span {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+  }
+
+  footer {
+    margin-top: 76px;
+    padding-top: 22px;
+    border-top: 1px solid var(--rule);
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 24px;
+    justify-content: space-between;
+  }
+</style>
+
+<div class="page">
+
+  <header class="masthead">
+    <div>
+      <p class="eyebrow">System blueprint · v1</p>
+      <h1>Ticket Booking</h1>
+      <p class="lede">
+        Seats are picked from a live map, held on a ticking clock, released the
+        moment checkout is abandoned, and — when a booking is cancelled — handed
+        down a waitlist automatically. Every confirmed booking emails a QR ticket.
+      </p>
+      <ul class="chips">
+        <li>Express + TypeScript</li>
+        <li>React + Vite</li>
+        <li>PostgreSQL · Prisma</li>
+        <li>Redis · BullMQ</li>
+        <li>Socket.IO</li>
+        <li>Argon2id + JWT</li>
+      </ul>
+    </div>
+
+    <div class="motif" aria-hidden="true">
+      <div class="motif-grid">
+        <span class="s-free"></span><span class="s-free"></span><span class="s-sold"></span><span class="s-sold"></span><span class="s-held"></span><span class="s-free"></span><span class="s-free"></span><span class="s-free"></span>
+        <span class="s-free"></span><span class="s-sold"></span><span class="s-sold"></span><span class="s-sold"></span><span class="s-held"></span><span class="s-held"></span><span class="s-free"></span><span class="s-free"></span>
+        <span class="s-sold"></span><span class="s-sold"></span><span class="s-offer"></span><span class="s-sold"></span><span class="s-sold"></span><span class="s-free"></span><span class="s-free"></span><span class="s-sold"></span>
+        <span class="s-free"></span><span class="s-free"></span><span class="s-sold"></span><span class="s-sold"></span><span class="s-free"></span><span class="s-free"></span><span class="s-sold"></span><span class="s-sold"></span>
+      </div>
+      <p class="motif-cap">ROW C–F · SCREEN THIS WAY</p>
+      <ul class="legend">
+        <li><i class="k-free"></i>available</li>
+        <li><i class="k-held"></i>held</li>
+        <li><i class="k-offer"></i>offered</li>
+        <li><i class="k-sold"></i>booked</li>
+      </ul>
+    </div>
+  </header>
+
+  <div class="statusbar">
+    <span>PHASE <b>0 / 9 — foundations</b></span>
+    <span>SOURCE OF TRUTH <b>PostgreSQL</b></span>
+    <span>HOLD TTL <b>600s, configurable</b></span>
+    <span>OFFER TTL <b>600s, configurable</b></span>
+    <span>SWEEP <b>every 10s</b></span>
+  </div>
+
+  <!-- ============ what gets graded ============ -->
+  <section>
+    <div class="sec-head col">
+      <h2>What this is graded on</h2>
+      <p>
+        Six evaluation criteria in the brief. Each one maps to a specific
+        mechanism and a specific file — nothing here is left to "we'll figure it
+        out during implementation."
+      </p>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <h3>Seat hold TTL &amp; auto-release</h3>
+        <p>Lazy expiry makes it correct; a 10-second sweeper makes it look instant to everyone else watching the map.</p>
+        <span class="where">modules/holds · jobs/sweeper.ts</span>
+      </div>
+      <div class="card">
+        <h3>Concurrency protection</h3>
+        <p><code>SELECT … FOR UPDATE</code> inside the transaction, lock set sorted by id. One winner, one 201, nineteen 409s.</p>
+        <span class="where">tests/concurrency/</span>
+      </div>
+      <div class="card">
+        <h3>Waitlist auto-assignment</h3>
+        <p>FIFO by <code>joinedAt</code>, picked with <code>SKIP LOCKED</code>. Cancellation and offer-expiry call the same function.</p>
+        <span class="where">modules/waitlist/service.ts</span>
+      </div>
+      <div class="card">
+        <h3>Seat map &amp; realtime status</h3>
+        <p>One <code>ShowSeat</code> row per seat per show. Socket.IO room per show, broadcast after every commit.</p>
+        <span class="where">realtime/ · GET /shows/:id/seats</span>
+      </div>
+      <div class="card">
+        <h3>QR generation &amp; email</h3>
+        <p>QR encodes a random-token verify URL, not booking JSON. Delivery is a queued job with retry, never inline.</p>
+        <span class="where">jobs/email.worker.ts · lib/qr.ts</span>
+      </div>
+      <div class="card">
+        <h3>API design &amp; documentation</h3>
+        <p>Versioned REST, Zod at every boundary, one error shape. Seven docs kept current in the same commit as the code.</p>
+        <span class="where">docs/API.md · docs/ARCHITECTURE.md</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ architecture ============ -->
+  <section>
+    <div class="sec-head col">
+      <h2>How the pieces sit</h2>
+      <p>
+        Postgres is the only thing that decides whether a seat is free. Redis
+        carries job queues and the socket fan-out — never a lock. Two sources of
+        truth for one seat is how a system sells the same chair twice.
+      </p>
+    </div>
+
+    <figure>
+      <div class="scroller">
+        <svg class="diagram" viewBox="0 0 900 268" role="img" aria-label="Browser talks to the Express API over REST and Socket.IO; the API talks to PostgreSQL, Redis and the email provider.">
+          <defs>
+            <marker id="a-n" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--rule-strong)"></path>
+            </marker>
+          </defs>
+
+          <rect x="16" y="94" width="176" height="78" rx="10" fill="var(--surface-2)" stroke="var(--rule-strong)"></rect>
+          <text x="104" y="126" text-anchor="middle" class="box-label" fill="var(--ink)">apps/web</text>
+          <text x="104" y="146" text-anchor="middle" class="box-sub" fill="var(--muted)">SEAT GRID · CHECKOUT</text>
+
+          <rect x="296" y="94" width="196" height="78" rx="10" fill="var(--accent-wash)" stroke="var(--accent)"></rect>
+          <text x="394" y="126" text-anchor="middle" class="box-label" fill="var(--ink)">apps/api</text>
+          <text x="394" y="146" text-anchor="middle" class="box-sub" fill="var(--muted)">MODULES · JOBS · REALTIME</text>
+
+          <rect x="620" y="20" width="264" height="66" rx="10" fill="var(--free-wash)" stroke="var(--seat-free)"></rect>
+          <text x="752" y="47" text-anchor="middle" class="box-label" fill="var(--ink)">PostgreSQL · Neon</text>
+          <text x="752" y="67" text-anchor="middle" class="box-sub" fill="var(--seat-free)">SINGLE SOURCE OF TRUTH</text>
+
+          <rect x="620" y="100" width="264" height="66" rx="10" fill="var(--surface-2)" stroke="var(--rule-strong)"></rect>
+          <text x="752" y="127" text-anchor="middle" class="box-label" fill="var(--ink)">Redis · Upstash</text>
+          <text x="752" y="147" text-anchor="middle" class="box-sub" fill="var(--muted)">QUEUES · SOCKET ADAPTER</text>
+
+          <rect x="620" y="180" width="264" height="66" rx="10" fill="var(--surface-2)" stroke="var(--rule-strong)"></rect>
+          <text x="752" y="207" text-anchor="middle" class="box-label" fill="var(--ink)">Resend</text>
+          <text x="752" y="227" text-anchor="middle" class="box-sub" fill="var(--muted)">QR TICKET · OFFER EMAIL</text>
+
+          <path d="M 192 118 H 288" stroke="var(--rule-strong)" fill="none" marker-end="url(#a-n)"></path>
+          <text x="240" y="108" text-anchor="middle" class="edge-label" fill="var(--muted)">REST + JWT</text>
+
+          <path d="M 288 150 H 198" stroke="var(--rule-strong)" fill="none" marker-end="url(#a-n)"></path>
+          <text x="243" y="169" text-anchor="middle" class="edge-label" fill="var(--muted)">seat:update</text>
+
+          <path d="M 492 118 H 556 V 53 H 612" stroke="var(--rule-strong)" fill="none" marker-end="url(#a-n)"></path>
+          <text x="556" y="42" text-anchor="middle" class="edge-label" fill="var(--muted)">Prisma tx</text>
+
+          <path d="M 492 133 H 612" stroke="var(--rule-strong)" fill="none" marker-end="url(#a-n)"></path>
+          <text x="552" y="124" text-anchor="middle" class="edge-label" fill="var(--muted)">BullMQ</text>
+
+          <path d="M 492 148 H 556 V 213 H 612" stroke="var(--rule-strong)" fill="none" marker-end="url(#a-n)"></path>
+          <text x="556" y="233" text-anchor="middle" class="edge-label" fill="var(--muted)">queued job</text>
+        </svg>
+      </div>
+      <figcaption>
+        <b>The rule underneath the picture:</b> every seat state transition —
+        hold, release, book, offer — happens inside one Prisma transaction that
+        holds a row lock. Nothing else is allowed to decide a seat's fate.
+      </figcaption>
+    </figure>
+  </section>
+
+  <!-- ============ seat lifecycle ============ -->
+  <section>
+    <div class="sec-head col">
+      <h2>The seat lifecycle</h2>
+      <p>
+        Four states. The two amber transitions are the automatic ones — nobody
+        clicks anything to make them happen, and they are the two the brief
+        cares most about.
+      </p>
+    </div>
+
+    <figure>
+      <div class="scroller">
+        <svg class="diagram" viewBox="0 0 900 400" role="img" aria-label="State machine: available to held on selection, held back to available on TTL expiry, held to booked on confirmation, booked to offered on cancellation, offered to booked on acceptance, offered back to available when the queue is empty, and offered to itself when an offer expires and passes to the next in line.">
+          <defs>
+            <marker id="a-s" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--rule-strong)"></path>
+            </marker>
+            <marker id="a-auto" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--accent)"></path>
+            </marker>
+          </defs>
+
+          <rect x="40" y="40" width="170" height="64" rx="10" fill="var(--free-wash)" stroke="var(--seat-free)" stroke-width="1.5"></rect>
+          <text x="125" y="70" text-anchor="middle" class="box-label" fill="var(--ink)">AVAILABLE</text>
+          <text x="125" y="88" text-anchor="middle" class="box-sub" fill="var(--muted)">anyone can take it</text>
+
+          <rect x="330" y="40" width="170" height="64" rx="10" fill="var(--held-wash)" stroke="var(--seat-held)" stroke-width="1.5"></rect>
+          <text x="415" y="70" text-anchor="middle" class="box-label" fill="var(--ink)">HELD</text>
+          <text x="415" y="88" text-anchor="middle" class="box-sub" fill="var(--muted)">holdExpiresAt</text>
+
+          <rect x="650" y="40" width="170" height="64" rx="10" fill="var(--sold-wash)" stroke="var(--seat-sold)" stroke-width="1.5"></rect>
+          <text x="735" y="70" text-anchor="middle" class="box-label" fill="var(--ink)">BOOKED</text>
+          <text x="735" y="88" text-anchor="middle" class="box-sub" fill="var(--muted)">QR issued</text>
+
+          <rect x="330" y="250" width="170" height="64" rx="10" fill="var(--offer-wash)" stroke="var(--seat-offer)" stroke-width="1.5"></rect>
+          <text x="415" y="280" text-anchor="middle" class="box-label" fill="var(--ink)">OFFERED</text>
+          <text x="415" y="298" text-anchor="middle" class="box-sub" fill="var(--muted)">one named customer</text>
+
+          <path d="M 210 62 H 322" stroke="var(--rule-strong)" fill="none" marker-end="url(#a-s)"></path>
+          <text x="266" y="52" text-anchor="middle" class="edge-label" fill="var(--muted)">seats selected</text>
+
+          <path d="M 330 88 H 218" stroke="var(--accent)" stroke-width="1.5" fill="none" marker-end="url(#a-auto)"></path>
+          <text x="274" y="106" text-anchor="middle" class="edge-label" fill="var(--accent)">TTL expires · abandoned</text>
+
+          <path d="M 500 62 H 642" stroke="var(--rule-strong)" fill="none" marker-end="url(#a-s)"></path>
+          <text x="571" y="52" text-anchor="middle" class="edge-label" fill="var(--muted)">booking confirmed</text>
+
+          <path d="M 745 104 V 296 H 508" stroke="var(--rule-strong)" fill="none" marker-end="url(#a-s)"></path>
+          <text x="628" y="286" text-anchor="middle" class="edge-label" fill="var(--muted)">cancelled → advanceWaitlist()</text>
+
+          <path d="M 460 250 V 170 H 690 V 112" stroke="var(--rule-strong)" fill="none" marker-end="url(#a-s)"></path>
+          <text x="572" y="160" text-anchor="middle" class="edge-label" fill="var(--muted)">offer accepted in time</text>
+
+          <path d="M 330 268 H 125 V 112" stroke="var(--rule-strong)" fill="none" marker-end="url(#a-s)"></path>
+          <text x="222" y="258" text-anchor="middle" class="edge-label" fill="var(--muted)">queue empty</text>
+
+          <path d="M 358 314 C 352 366 478 366 472 314" stroke="var(--accent)" stroke-width="1.5" fill="none" marker-end="url(#a-auto)"></path>
+          <text x="415" y="386" text-anchor="middle" class="edge-label" fill="var(--accent)">offer expires → next in line</text>
+        </svg>
+      </div>
+      <figcaption>
+        <b>Why <code>OFFERED</code> is not just <code>HELD</code>:</b> an expired
+        hold goes back to available; an expired offer has to walk the queue. Same
+        status for both means the sweeper has to guess which kind of expiry it
+        found — and seats quietly fall out of the waitlist.
+      </figcaption>
+    </figure>
+  </section>
+
+  <!-- ============ concurrency ============ -->
+  <section>
+    <div class="sec-head col">
+      <h2>The race, and the lock that ends it</h2>
+      <p>
+        Two customers, one seat, requests landing microseconds apart. The naive
+        version has no error anywhere in the logs — it just quietly sells the
+        chair twice.
+      </p>
+    </div>
+
+    <div class="pair">
+      <div class="code">
+        <div class="code-head"><span>check, then write</span><span class="tag tag-bad">RACE</span></div>
+<pre><i>// both requests read AVAILABLE,</i>
+<i>// both write HELD, second one wins</i>
+<i>// silently. No error is ever raised.</i>
+
+const seat = await prisma.showSeat
+  .findUnique({ where: { id } });
+
+<i>// ← another request interleaves here</i>
+
+if (seat.status === 'AVAILABLE') {
+  await prisma.showSeat.update({
+    where: { id },
+    data:  { status: 'HELD' },
+  });
+}</pre>
+      </div>
+
+      <div class="code">
+        <div class="code-head"><span>lock, check, write, commit</span><span class="tag tag-good">SAFE</span></div>
+<pre>await prisma.$transaction(async (tx) =&gt; {
+  await tx.$queryRaw`
+    SELECT id FROM "ShowSeat"
+    WHERE id = ANY(${seatIds})
+    <b>ORDER BY id</b>
+    <b>FOR UPDATE</b>`;
+
+  <i>// contender #2 blocks right there,</i>
+  <i>// wakes up, reads HELD, gets a 409</i>
+
+  assertAllFree(tx, seatIds);
+  await hold(tx, seatIds, userId);
+});</pre>
+      </div>
+    </div>
+
+    <div class="stack" style="margin-top: 22px;">
+      <div class="callout col">
+        <h3>Why ORDER BY id</h3>
+        <p>
+          Two customers grabbing seats A and B in opposite orders deadlock.
+          Postgres resolves a deadlock by killing one transaction — which turns a
+          clean "that seat just went" into a 500. Sorting the lock set makes the
+          deadlock impossible rather than merely unlikely.
+        </p>
+      </div>
+
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr><th>Layer</th><th>Stops</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="mono">FOR UPDATE</td><td>Two customers racing for the same seat<small>The primary guard. Serialises contenders at the row.</small></td></tr>
+            <tr><td class="mono">BookingSeat.showSeatId @unique</td><td>One seat sold into two bookings, ever<small>The seatbelt. Even if every application check were wrong, Postgres refuses the write.</small></td></tr>
+            <tr><td class="mono">ShowSeat @@unique([showId, seatId])</td><td>A show being instantiated twice<small>Re-running seat generation is rejected, not duplicated.</small></td></tr>
+            <tr><td class="mono">FOR UPDATE SKIP LOCKED</td><td>Two sweepers offering one seat to two people<small>The second picker skips the locked row and takes the next in line.</small></td></tr>
+            <tr><td class="mono">rate limit + hold cap</td><td>One script holding the entire venue<small>Locks stop a race. They do nothing about one customer legitimately taking everything.</small></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ waitlist ============ -->
+  <section>
+    <div class="sec-head col">
+      <h2>Waitlist, end to end</h2>
+      <p>
+        A genuine sequence, so it is numbered. Steps 4 and 5 loop until someone
+        accepts or the queue runs dry — and both loops re-enter the same
+        <code>advanceWaitlist()</code> function, never a second copy of it.
+      </p>
+    </div>
+
+    <ol class="steps col">
+      <li>
+        <h3>Category sells out, customer joins the queue</h3>
+        <p><code>POST /shows/:id/waitlist</code> writes one <code>WaitlistEntry</code> with <code>joinedAt</code>. Duplicate entries are refused, so refreshing the page does not buy three places in line.</p>
+      </li>
+      <li>
+        <h3>Somebody cancels</h3>
+        <p>The booking is marked <code>CANCELLED</code> and each freed seat is passed to <code>advanceWaitlist(showSeatId)</code> — inside the same transaction that freed it.</p>
+      </li>
+      <li>
+        <h3>The queue is read, FIFO, one row at a time</h3>
+        <p><code>ORDER BY joinedAt ASC LIMIT 1 FOR UPDATE SKIP LOCKED</code>. Earliest wins; a concurrent cancellation skips the locked row instead of offering the same seat twice.</p>
+      </li>
+      <li>
+        <h3>Seat goes OFFERED, email goes out</h3>
+        <p>Seat and entry both get <code>offerExpiresAt</code>. The entry gets an <code>offerToken</code> — 32 bytes from <code>crypto.randomBytes</code>, never <code>Math.random()</code>. The emailed link is that token; it is a bearer credential for a real seat.</p>
+      </li>
+      <li>
+        <h3>They accept — or the clock runs out</h3>
+        <p>Accepting checks all five: token matches, entry is <code>OFFERED</code>, not expired, seat still <code>OFFERED</code>, and the caller is the customer it was offered to. Silence instead means the sweeper marks the entry <code>EXPIRED</code> and feeds the seat straight back into step 3.</p>
+      </li>
+      <li>
+        <h3>Queue empties</h3>
+        <p>No one left waiting → the seat returns to <code>AVAILABLE</code> and the map updates for everyone watching the show.</p>
+      </li>
+    </ol>
+  </section>
+
+  <!-- ============ data model ============ -->
+  <section>
+    <div class="sec-head col">
+      <h2>Where state lives</h2>
+      <p>
+        A chair does not know whether it is sold. <code>Seat</code> is physical
+        geometry, written once per venue. <code>ShowSeat</code> is one row per
+        seat per show, and it is the only thing that carries status.
+      </p>
+    </div>
+
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr><th>Model</th><th>Carries</th><th class="mono">Key constraint</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="mono">Seat</td>
+            <td>Section, row, number, <code>posX</code>/<code>posY</code><small>Physical geometry. Written once per venue, never touched again.</small></td>
+            <td class="mono">@@unique([venueId, section, row, number])</td>
+          </tr>
+          <tr>
+            <td class="mono">ShowSeat</td>
+            <td>status · categoryId · heldByUserId · holdExpiresAt · offerExpiresAt<small>Generated per seat per show. The live row everything locks.</small></td>
+            <td class="mono">@@unique([showId, seatId])<br>@@index([showId, status])</td>
+          </tr>
+          <tr>
+            <td class="mono">Booking</td>
+            <td>reference · qrToken · status<small><code>reference</code> is human-facing. <code>qrToken</code> is 32 random bytes and is what the QR actually encodes.</small></td>
+            <td class="mono">reference @unique · qrToken @unique</td>
+          </tr>
+          <tr>
+            <td class="mono">BookingSeat</td>
+            <td><code>priceAtBooking</code><small>Price is snapshotted so an organiser re-pricing next week cannot rewrite last week's revenue.</small></td>
+            <td class="mono">showSeatId @unique</td>
+          </tr>
+          <tr>
+            <td class="mono">WaitlistEntry</td>
+            <td>joinedAt · status · offerToken · offerExpiresAt<small>Queue position is <code>joinedAt</code>, scoped to (show, category).</small></td>
+            <td class="mono">@@index([showId, categoryId, status, joinedAt])</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout col" style="margin-top: 20px;">
+      <h3>Never leaves the server</h3>
+      <p>
+        <code>heldByUserId</code> is not in any client payload. The public map
+        shows <em>that</em> a seat is held; it must never show <em>who</em> is
+        holding it. Every seat response is an explicit <code>select</code>, not a
+        spread of the row.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============ build phases ============ -->
+  <section>
+    <div class="sec-head col">
+      <h2>Build order</h2>
+      <p>
+        Ten phases, worked in sequence — the ordering is real, each one needs the
+        last. Phases 3 and 5 are the two the evaluation actually turns on.
+      </p>
+    </div>
+
+    <div class="phases">
+      <div class="phase is-active">
+        <div class="phase-n">00</div>
+        <div>
+          <h3>Foundations <span class="flag flag-now">in progress</span></h3>
+          <p>Monorepo, TS config, Neon + Prisma, Express and Vite skeletons, docs, first commit.</p>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="phase-n">01</div>
+        <div>
+          <h3>Auth &amp; roles</h3>
+          <p>Argon2id, JWT pinned to HS256, <code>requireRole</code> middleware. Register hard-codes <code>CUSTOMER</code>.</p>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="phase-n">02</div>
+        <div>
+          <h3>Venues, events, shows</h3>
+          <p>Admin venue + seat layout, organiser events and pricing, <code>instantiateShowSeats()</code> on show creation.</p>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="phase-n">03</div>
+        <div>
+          <h3>Seat map, holds, concurrency <span class="flag flag-graded">graded</span></h3>
+          <p>The locked hold transaction, the sweeper, and the 20-parallel-request test that must never go red again.</p>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="phase-n">04</div>
+        <div>
+          <h3>Booking, QR, email</h3>
+          <p>Confirm from a held seat, snapshot the price, queue the QR email. Booking history and cancellation.</p>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="phase-n">05</div>
+        <div>
+          <h3>Waitlist &amp; time-limited offers <span class="flag flag-graded">graded</span></h3>
+          <p><code>advanceWaitlist()</code>, the offer sweeper, the accept endpoint, and the FIFO ordering test.</p>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="phase-n">06</div>
+        <div>
+          <h3>Real-time seat map</h3>
+          <p>Socket.IO rooms, Redis adapter, broadcast after commit. Polling retires to a fallback.</p>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="phase-n">07</div>
+        <div>
+          <h3>Organiser dashboard &amp; polish</h3>
+          <p>Revenue by category, seat map visuals, countdown timers, loading and error states throughout.</p>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="phase-n">08</div>
+        <div>
+          <h3>Deploy, document, verify</h3>
+          <p>Vercel + Render + Neon, live smoke test, README, the 800-word write-up, concurrency test against production.</p>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="phase-n">09</div>
+        <div>
+          <h3>Hardening <span class="flag flag-opt">optional</span></h3>
+          <p>Seed data, Docker, graceful shutdown, structured logging, CI, load test. Not in the brief — it is what separates passing from standing out.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ standing rules ============ -->
+  <section>
+    <div class="sec-head col">
+      <h2>Standing rules</h2>
+      <p>
+        Decisions already made. Changing any of them is a conversation, not a
+        commit — they are the ones that quietly cost a day if reversed halfway.
+      </p>
+    </div>
+
+    <ol class="rules col">
+      <li><span>01</span><div>Postgres is the only source of truth for seat state. Never a Redis lock.</div></li>
+      <li><span>02</span><div>Every state transition sits inside a transaction that opens with <code>FOR UPDATE</code>. No check-then-write.</div></li>
+      <li><span>03</span><div>Cancellation and offer-expiry call the same <code>advanceWaitlist()</code>. Never two copies.</div></li>
+      <li><span>04</span><div>Lazy expiry is the correctness guarantee; the sweeper is only what makes it feel live.</div></li>
+      <li><span>05</span><div>Email is queued through BullMQ. A confirmed booking never waits on SMTP.</div></li>
+      <li><span>06</span><div><code>POST /auth/register</code> hard-codes the role server-side. No request shape accepts one.</div></li>
+      <li><span>07</span><div><code>offerToken</code> and <code>qrToken</code> are <code>crypto.randomBytes(32)</code>. Both are bearer credentials.</div></li>
+      <li><span>08</span><div>JWT algorithm pinned to HS256 on both sign and verify. Never inferred from the token.</div></li>
+      <li><span>09</span><div>Broadcast after commit, never inside the transaction.</div></li>
+      <li><span>10</span><div><code>DATABASE_URL</code> pooled for the app, <code>DIRECT_URL</code> unpooled for migrations. Mixing them is the classic deploy break.</div></li>
+      <li><span>11</span><div>Claude commits; only the repo owner pushes.</div></li>
+    </ol>
+  </section>
+
+  <!-- ============ docs ============ -->
+  <section>
+    <div class="sec-head col">
+      <h2>Where things are written down</h2>
+      <p>Seven files, each with one job, all updated in the same commit as the code they describe.</p>
+    </div>
+
+    <div class="cards">
+      <div class="card"><h3>CLAUDE.md</h3><p>Condensed load-bearing memory: stack, the non-negotiable rules, the authoritative Prisma schema. Read first, every session.</p></div>
+      <div class="card"><h3>docs/ARCHITECTURE.md</h3><p>The mechanisms in full — lifecycle, locking, waitlist, realtime, and the limits accepted on purpose.</p></div>
+      <div class="card"><h3>docs/CONTEXT.md</h3><p>Rolling session journal. Top entry says exactly where the project stands and what is next.</p></div>
+      <div class="card"><h3>docs/DECISIONS.md</h3><p>ADR log. What was chosen, what it beat, why. Appended to, never rewritten.</p></div>
+      <div class="card"><h3>docs/RULES.md</h3><p>The working agreement. Every rule the user sets lands here the turn it is given.</p></div>
+      <div class="card"><h3>docs/DEBUGGING.md</h3><p>Traps written down before they bite, plus a symptom → cause → fix log for everything that costs real time.</p></div>
+      <div class="card"><h3>docs/TODO.md</h3><p>Phase-by-phase checklist with a "done when" test on every phase. The progress source of truth.</p></div>
+      <div class="card"><h3>docs/API.md</h3><p>The endpoint contract, updated in the same commit as the route it describes.</p></div>
+    </div>
+  </section>
+
+  <footer>
+    <span>TICKET BOOKING SYSTEM · BLUEPRINT v1</span>
+    <span>PHASE 0 · 22 AUG 2026</span>
+  </footer>
+
+</div>
