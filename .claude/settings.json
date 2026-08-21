@@ -2,7 +2,26 @@
   "permissions": {
     "allow": [
       "Bash(npm -v)",
-      "Bash(git -C \"/Users/rupingupta/Ticket Booking\" status)"
+      "Bash(git -C \"/Users/rupingupta/Ticket Booking\" status)",
+      "Bash(git remote *)",
+      "Bash(npm install *)",
+      "Bash(npm audit *)",
+      "Bash(node -p \"require\\('./node_modules/prisma/package.json'\\).version + ' | latest: '\")",
+      "Bash(npm view *)",
+      "Bash(npm run *)",
+      "Bash(echo \"exit=$?\")",
+      "Bash(nohup npm run dev)",
+      "Bash(echo \"started pid $!\")",
+      "Bash(node -e ' *)",
+      "mcp__plugin_context-mode_context-mode__ctx_execute",
+      "Bash(kill 56399)",
+      "Bash(pkill -f \"tsx watch src/server.ts\")",
+      "Bash(pkill -f \"apps/web.*vite\")",
+      "Bash(npx prisma *)",
+      "Bash(grep -E \"\\\\.env$\")",
+      "Bash(git add *)",
+      "Bash(git commit -q -m ' *)",
+      "Bash(git commit *)"
     ]
   }
 }

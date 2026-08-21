@@ -179,6 +179,7 @@ model Show {
 
   showSeats       ShowSeat[]
   waitlistEntries WaitlistEntry[]
+  bookings        Booking[] // required opposite side of Booking.show — see ADR-012
 }
 
 model ShowSeat {
@@ -220,6 +221,8 @@ model Booking {
   cancelledAt DateTime?
 
   seats BookingSeat[]
+
+  @@index([customerId, createdAt]) // booking history: by customer, newest first
 }
 
 enum BookingStatus {
@@ -316,12 +319,12 @@ the index.
    Vite skeletons, `.env.example`, first commit.
 1. **Auth & roles** — User model, register/login, JWT + role middleware.
 2. **Venues, events & shows** — admin/organiser CRUD, `instantiateShowSeats()`.
-3. **Seat map, holds & concurrency** *(evaluation-critical)* — seat map
+3. **Seat map, holds & concurrency** _(evaluation-critical)_ — seat map
    endpoint, locked hold transaction, hold sweeper, the concurrency test,
    basic seat grid UI.
 4. **Booking, QR & email** — booking confirmation, QR generation, queued
    email worker, booking history/cancel.
-5. **Waitlist & time-limited offers** *(evaluation-critical)* —
+5. **Waitlist & time-limited offers** _(evaluation-critical)_ —
    `advanceWaitlist()`, offer sweeper, accept-offer endpoint, the waitlist test.
 6. **Real-time seat map** — Socket.IO rooms, broadcast on every mutation,
    retire polling.
@@ -329,7 +332,7 @@ the index.
    countdown timer, loading/error states.
 8. **Deploy, document, verify** — Vercel + Render + Neon, smoke-test live,
    README, `SYSTEM_DESIGN.md`, re-run the concurrency test against prod.
-9. **Hardening & standing out** *(optional, do it if time allows)* — seed
+9. **Hardening & standing out** _(optional, do it if time allows)_ — seed
    script, Dockerfile + docker-compose, graceful shutdown, structured
    logging, CI running both test suites, a load-test script, OpenAPI docs,
    error tracking. Not required by the brief; it's what separates a
@@ -337,4 +340,6 @@ the index.
 
 ## Current phase
 
-`Phase 0 — not started. Update this line yourself as you move through the plan.`
+`Phase 0 — scaffolding done and verified. Blocked on user creating Neon +
+Upstash and filling apps/api/.env; then run npm run db:migrate and start
+Phase 1 (auth). Full detail in docs/CONTEXT.md.`

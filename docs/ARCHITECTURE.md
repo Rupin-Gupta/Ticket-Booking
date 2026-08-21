@@ -88,7 +88,7 @@ impossible; `@@index([showId, status])` makes the seat map and the sweeper fast.
 `OFFERED` exists as a distinct status rather than reusing `HELD` because the two
 have different owners and different expiry clocks: a `HELD` seat belongs to
 whoever grabbed it and dies in ~10 minutes; an `OFFERED` seat is reserved
-*against a specific waitlist entry* and, on expiry, must walk the queue instead
+_against a specific waitlist entry_ and, on expiry, must walk the queue instead
 of going straight back to `AVAILABLE`. Collapsing them means one sweeper branch
 has to guess which kind of expiry it is looking at.
 
@@ -129,7 +129,7 @@ Two mechanisms, different jobs:
   no seat is ever permanently locked by an abandoned checkout.
 - **The sweeper is the UX guarantee.** A BullMQ repeatable job every ~10s flips
   expired `HELD` rows back to `AVAILABLE` and expired `OFFERED` rows through
-  `advanceWaitlist()`, then broadcasts. Without it a seat *is* free but still
+  `advanceWaitlist()`, then broadcasts. Without it a seat _is_ free but still
   renders grey on everyone else's screen until someone happens to touch it.
 
 `ponytail:` one repeatable job, two queries, no per-seat timers. Per-seat
@@ -149,7 +149,8 @@ The bug this project is graded on avoiding:
 ```ts
 // WRONG — time-of-check-to-time-of-use race
 const seat = await prisma.showSeat.findUnique({ where: { id } });
-if (seat.status === 'AVAILABLE') {              // ← another request interleaves here
+if (seat.status === 'AVAILABLE') {
+  // ← another request interleaves here
   await prisma.showSeat.update({ where: { id }, data: { status: 'HELD' } });
 }
 ```
@@ -194,13 +195,13 @@ near request data.
 
 ### Defence in depth
 
-| Layer | Protects against |
-| --- | --- |
-| `FOR UPDATE` in the hold/book transaction | two customers racing for one seat |
-| `@@unique([showId, seatId])` on `ShowSeat` | duplicate seat instantiation |
-| `@unique` on `BookingSeat.showSeatId` | one seat sold into two bookings, ever |
-| `FOR UPDATE SKIP LOCKED` on waitlist pick | two sweepers offering one seat to two people |
-| Rate limit + per-customer hold cap | one script legitimately holding the venue |
+| Layer                                      | Protects against                             |
+| ------------------------------------------ | -------------------------------------------- |
+| `FOR UPDATE` in the hold/book transaction  | two customers racing for one seat            |
+| `@@unique([showId, seatId])` on `ShowSeat` | duplicate seat instantiation                 |
+| `@unique` on `BookingSeat.showSeatId`      | one seat sold into two bookings, ever        |
+| `FOR UPDATE SKIP LOCKED` on waitlist pick  | two sweepers offering one seat to two people |
+| Rate limit + per-customer hold cap         | one script legitimately holding the venue    |
 
 `BookingSeat.showSeatId @unique` is the seatbelt: even if every application check
 were wrong, Postgres refuses to record the same show-seat in two bookings.
@@ -255,7 +256,7 @@ waiting and assert the offer went to the earliest `joinedAt` and to nobody else.
 ### Accepting
 
 `POST /api/v1/waitlist/offers/:token/accept` — transaction locks the entry and
-the seat, and rejects unless *all* of: token matches, entry is `OFFERED`,
+the seat, and rejects unless _all_ of: token matches, entry is `OFFERED`,
 `offerExpiresAt > now()`, seat is still `OFFERED` for that entry, and the caller
 is the customer the offer belongs to. Then it books the seat and marks the entry
 `CONVERTED`.
@@ -305,14 +306,14 @@ Socket.IO, one room per show: `show:{showId}`.
 - Client emits `show:join` / `show:leave` on mount/unmount.
 - Server emits `seat:sync` — full seat snapshot on join, so a late joiner is
   never rendering a stale map.
-- Server emits `seat:update` — one seat, after *every* committed mutation:
+- Server emits `seat:update` — one seat, after _every_ committed mutation:
   hold, release, book, cancel, offer, offer-expiry, sweeper release.
 
 Broadcast **after commit**, never inside the transaction. Emitting from inside
 means a rolled-back transaction has already told every browser the seat is gone.
 
 Payloads are explicit `select`s. `heldByUserId` never leaves the server — the
-public map shows *that* a seat is held, never *who* holds it.
+public map shows _that_ a seat is held, never _who_ holds it.
 
 `@socket.io/redis-adapter` is wired from the start. Without it, two Render
 instances each broadcast to their own connected clients and half the viewers
@@ -338,7 +339,7 @@ privilege-escalation hole. Organiser and admin accounts come from the seed
 script or an admin-only promote endpoint.
 
 Authorisation is two layers: `requireRole(['ORGANISER'])` for the coarse gate,
-then a resource-ownership check inside the service (this organiser owns *this*
+then a resource-ownership check inside the service (this organiser owns _this_
 event). Role alone lets any organiser read any other organiser's revenue.
 
 ---
@@ -363,10 +364,10 @@ tests need to set it to 2 seconds without waiting ten minutes.
 
 Deliberate, with the upgrade path named:
 
-| Simplification | Ceiling | Upgrade when |
-| --- | --- | --- |
-| No payment gateway | Booking confirms without money changing hands | Out of scope in the brief |
-| Sweeper interval 10s | Released seats appear free up to 10s late to *other* viewers | Drop the interval; correctness is already exact via lazy expiry |
-| One repeatable sweeper job | All expiries scan two indexed queries | Partition by show if a single scan gets slow |
-| Seat map rendered from `posX`/`posY` | No curved or tiered seating geometry | Store a layout JSON per venue if a real floor plan is needed |
-| Render free tier cold starts | First request after idle is slow | Paid tier, or a keep-warm ping |
+| Simplification                       | Ceiling                                                      | Upgrade when                                                    |
+| ------------------------------------ | ------------------------------------------------------------ | --------------------------------------------------------------- |
+| No payment gateway                   | Booking confirms without money changing hands                | Out of scope in the brief                                       |
+| Sweeper interval 10s                 | Released seats appear free up to 10s late to _other_ viewers | Drop the interval; correctness is already exact via lazy expiry |
+| One repeatable sweeper job           | All expiries scan two indexed queries                        | Partition by show if a single scan gets slow                    |
+| Seat map rendered from `posX`/`posY` | No curved or tiered seating geometry                         | Store a layout JSON per venue if a real floor plan is needed    |
+| Render free tier cold starts         | First request after idle is slow                             | Paid tier, or a keep-warm ping                                  |

@@ -21,7 +21,7 @@ Follow `superpowers:systematic-debugging` for anything non-trivial:
 
 Concurrency bugs specifically: if it only reproduces sometimes, that is data,
 not noise. Add `Promise.all` parallelism and a loop until it reproduces every
-time, *then* debug it.
+time, _then_ debug it.
 
 ---
 
@@ -75,7 +75,7 @@ broadcasts only to its own connected sockets.
 **Symptom:** a seat's `holdExpiresAt` is in the past but the grid still greys it.
 **Cause:** the read path returns raw `status` without considering expiry, and
 the sweeper has not run yet.
-**Fix:** the seat map projects an *effective* status — an expired lease renders
+**Fix:** the seat map projects an _effective_ status — an expired lease renders
 as available. Do not wait on the sweeper for what a read can compute.
 
 ### Waitlist offers two people the same seat
@@ -113,6 +113,30 @@ pattern if previews are used.
 **Symptom:** the first request after idle takes ~50s.
 **Cause:** free-tier instances spin down. Not a bug.
 **Fix:** warm it before demoing; note it in the README.
+
+### `npm audit` reports 3 high advisories on a clean install
+
+**Symptom:** `npm install` ends with "3 high severity vulnerabilities";
+`npm audit fix` does not clear them.
+**Cause:** `deepmerge-ts` (stack exhaustion on recursive object graphs) reaches
+us through `@prisma/config` → `prisma`, which is a **devDependency** — the CLI
+that runs migrations, not anything in the request path. No fixed release exists
+yet: prisma 7.9.1, the latest, is still inside the advisory range.
+**Fix:** none available; do not `npm audit fix --force`, it downgrades Prisma
+below the version the schema needs. Recheck at Phase 8 before submitting.
+
+### Strict-mode errors that look like TypeScript being difficult
+
+Both of these hit during Phase 0 and both were real:
+
+**`Type 'undefined' cannot be used as an index type`** — a mapped type over an
+object with optional properties keeps the `?`, so every indexed access carries a
+stray `undefined`. Add `-?` to the mapped type: `[K in keyof T]-?: …`.
+
+**`Argument of type '{ body: string | undefined }' is not assignable`** —
+`exactOptionalPropertyTypes` means "absent" and "present but undefined" are
+different. Build the object without the key rather than setting the key to
+`undefined`.
 
 ---
 

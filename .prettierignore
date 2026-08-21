@@ -1,0 +1,7 @@
+node_modules
+dist
+build
+coverage
+apps/api/prisma/migrations
+docs/blueprint.html
+package-lock.json

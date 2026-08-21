@@ -13,17 +13,29 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [x] Docs skeleton (`README`, `ARCHITECTURE`, `CONTEXT`, `DECISIONS`, `RULES`, `DEBUGGING`, `TODO`, `API`)
 - [x] Blueprint artifact published
 - [x] `git init` + `.gitignore` + first commit
-- [ ] npm workspaces root (`apps/api`, `apps/web`, `packages/shared`)
-- [ ] TypeScript + ESLint + Prettier config, shared base tsconfig
-- [ ] Express skeleton: health route, error handler, request logging
-- [ ] Vite + React skeleton, routing, API client
-- [ ] Neon project created, `DATABASE_URL` + `DIRECT_URL` set
-- [ ] Prisma init, full schema from `CLAUDE.md`, first migration applied
-- [ ] `apps/api/.env.example` with every key
-- [ ] Upstash Redis created, connection verified
+- [x] npm workspaces root (`apps/api`, `apps/web`, `packages/shared`)
+- [x] TypeScript strict + Prettier, shared base tsconfig — ESLint deliberately
+      skipped, see ADR-011
+- [x] Express skeleton: health route, error handler, request logging, helmet, CORS
+- [x] Vite + React skeleton, routing, API client, dev proxy
+- [x] `packages/shared` enums + `SeatView`, with a compile-time parity check
+      against the Prisma enums
+- [x] Prisma schema written from `CLAUDE.md` (+ the `Show.bookings`
+      back-relation it was missing), client generates
+- [x] `apps/api/.env.example` with every key, validated by `src/env.ts`
+- [ ] **Neon project created, `DATABASE_URL` + `DIRECT_URL` set** ← user action
+- [ ] **Upstash Redis created, `REDIS_URL` set** ← user action
+- [ ] `JWT_SECRET` generated (`openssl rand -base64 48`) ← user action
+- [ ] First migration applied (`npm run db:migrate`) — needs Neon first
 
 **Done when:** `npm run dev` starts both apps, `/health` returns 200, and
 `prisma migrate dev` applies cleanly against Neon.
+
+**Verified so far:** `npm run typecheck` clean across all three workspaces ·
+`/health` 200 with a config checklist · vite proxy reaches the API ·
+CORS returns no allow-origin for a foreign origin · helmet headers present ·
+404s return the standard error shape. Migration is the only item left, and it
+is blocked on the three accounts above.
 
 ## Phase 1 — Auth and roles
 
@@ -86,7 +98,7 @@ QR, and killing the mail provider does not fail the booking.
 - [ ] `POST /shows/:id/waitlist` — sold-out categories only, no duplicate entries
 - [ ] `GET /waitlist/me`, `DELETE /waitlist/:id`
 - [ ] `advanceWaitlist(showSeatId)` — FIFO, `FOR UPDATE SKIP LOCKED`
-- [ ] Cancellation calls it; offer expiry calls the *same* function
+- [ ] Cancellation calls it; offer expiry calls the _same_ function
 - [ ] `POST /waitlist/offers/:token/accept` — all five checks
 - [ ] Sweeper branch: expired offers → `EXPIRED` → `advanceWaitlist()`
 - [ ] Offer email with time-limited link
