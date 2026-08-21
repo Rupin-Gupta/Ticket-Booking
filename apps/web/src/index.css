@@ -1,0 +1,83 @@
+/*
+ * Deliberately minimal. The design system — tokens, type scale, seat map
+ * visuals — is built in Phase 2 with the ui-ux-pro-max skill, on real screens.
+ * Anything invented here would only have to be thrown away.
+ */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family:
+    system-ui,
+    -apple-system,
+    sans-serif;
+  line-height: 1.6;
+  background: #0e1117;
+  color: #e8eaf0;
+}
+
+@media (prefers-color-scheme: light) {
+  body {
+    background: #ffffff;
+    color: #14161c;
+  }
+}
+
+main {
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: 4rem 1.5rem;
+}
+
+h1 {
+  font-size: 2rem;
+  margin: 0 0 1.5rem;
+}
+
+.eyebrow {
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+
+.muted {
+  opacity: 0.6;
+}
+.ok {
+  color: #2f9e7f;
+}
+.bad {
+  color: #d3574a;
+}
+
+.checklist {
+  list-style: none;
+  padding: 0;
+  margin: 1.5rem 0 0;
+  display: grid;
+  gap: 0.5rem;
+  max-width: 22rem;
+}
+
+.checklist li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.checklist li em {
+  margin-left: auto;
+  font-style: normal;
+  font-size: 0.8rem;
+  opacity: 0.6;
+}
+
+.checklist li.todo {
+  opacity: 0.75;
+}

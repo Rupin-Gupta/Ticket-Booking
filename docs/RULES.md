@@ -11,7 +11,7 @@ rule is given — never rely on conversation memory for these.
 2. Commit in small, working increments — one commit per completed unit of work,
    not one giant commit per phase.
 3. Commit messages: imperative mood, subject line under 72 chars, body explains
-   *why* when the *what* is not obvious.
+   _why_ when the _what_ is not obvious.
 
 ## Documentation
 
