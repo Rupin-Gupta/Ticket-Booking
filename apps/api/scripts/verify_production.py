@@ -49,6 +49,18 @@ def bad(label: str, detail: str = "") -> None:
     print(f"  {RED}FAIL{RESET} {label}{f' — {detail}' if detail else ''}")
 
 
+def check(label: str, passed: bool, *, fail: str = "", detail: str = "") -> None:
+    """
+    One call site per assertion, with the failure explanation kept separate.
+
+    Written after the first production run printed green lines reading
+    "RULE 8 VIOLATED IN PRODUCTION" and "WEB_URL is too permissive" — the
+    failure text was being handed to both branches, so a passing check
+    announced the disaster it had just ruled out.
+    """
+    ok(label, detail) if passed else bad(label, fail)
+
+
 async def cleanup() -> None:
     async with Session() as session:
         # Only accounts that never booked anything — deleting a user with a
@@ -81,23 +93,29 @@ async def main(base: str) -> int:
             return await finish()
 
         body = health.json()
-        (ok if body.get("env") == "production" else bad)(
-            "running in production mode", f'got "{body.get("env")}"'
+        check(
+            "running in production mode",
+            body.get("env") == "production",
+            fail=f'got "{body.get("env")}"',
         )
-        (ok if body.get("database") == "up" else bad)(
-            "database reachable", f'got "{body.get("database")}"'
+        check(
+            "database reachable",
+            body.get("database") == "up",
+            fail=f'got "{body.get("database")}"',
         )
         for name, configured in body.get("configured", {}).items():
-            (ok if configured else bad)(
-                f"{name} configured", "" if configured else "env var missing"
-            )
+            check(f"{name} configured", bool(configured), fail="env var missing")
 
         foreign = await http.get(f"{base}/health", headers={"Origin": "https://evil.example"})
-        (ok if foreign.headers.get("access-control-allow-origin") is None else bad)(
-            "CORS rejects a foreign origin", "WEB_URL is too permissive"
+        check(
+            "CORS rejects a foreign origin",
+            foreign.headers.get("access-control-allow-origin") is None,
+            fail="WEB_URL is too permissive",
         )
-        (ok if foreign.headers.get("x-content-type-options") == "nosniff" else bad)(
-            "security headers present"
+        check(
+            "security headers present",
+            foreign.headers.get("x-content-type-options") == "nosniff",
+            fail="x-content-type-options missing",
         )
 
         # --------------------------------------------------- seat privacy
@@ -111,8 +129,10 @@ async def main(base: str) -> int:
         show_id = shows[0]["id"]
 
         raw = (await http.get(f"{api}/shows/{show_id}/seats")).text
-        (ok if "heldByUserId" not in raw else bad)(
-            "seat map never exposes heldByUserId", "RULE 8 VIOLATED IN PRODUCTION"
+        check(
+            "seat map never exposes heldByUserId",
+            "heldByUserId" not in raw,
+            fail="RULE 8 VIOLATED IN PRODUCTION",
         )
 
         seats = httpx.Response(200, text=raw).json()["seats"]
@@ -187,9 +207,10 @@ async def main(base: str) -> int:
 
         print(f"  statuses: {','.join(str(c) for c in codes)}  ({race_ms:.0f}ms)")
 
-        (ok if created == 1 else bad)(
+        check(
             "exactly one hold succeeded",
-            "" if created == 1 else f"{created} succeeded — SEATS CAN BE DOUBLE-SOLD",
+            created == 1,
+            fail=f"{created} succeeded — SEATS CAN BE DOUBLE-SOLD",
         )
         clean = conflicted + throttled == len(tokens) - 1
         (ok if clean else bad)(
@@ -203,9 +224,10 @@ async def main(base: str) -> int:
             print(
                 f"  note: {throttled} request(s) hit the per-IP hold limit — rerun after a minute"
             )
-        (ok if errored == 0 else bad)(
+        check(
             "no request errored",
-            "" if errored == 0 else f"{errored} returned 5xx — likely a transaction timeout",
+            errored == 0,
+            fail=f"{errored} returned 5xx — likely a transaction timeout",
         )
 
         # The HTTP codes could be right while the database is wrong.
@@ -215,10 +237,10 @@ async def main(base: str) -> int:
                 .scalars()
                 .first()
             )
-        good = row is not None and row.status is SeatStatus.HELD and row.held_by_user_id
-        (ok if good else bad)(
+        check(
             "database holds exactly one owner for the seat",
-            "" if good else f"status={row.status if row else None}",
+            row is not None and row.status is SeatStatus.HELD and bool(row.held_by_user_id),
+            fail=f"status={row.status if row else None}",
         )
 
         # Leave production as we found it.
