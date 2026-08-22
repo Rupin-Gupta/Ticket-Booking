@@ -42,6 +42,39 @@ def utcnow() -> datetime:
     return datetime.now(UTC).replace(tzinfo=None)
 
 
+def iso(value: datetime | None) -> str | None:
+    """
+    Format a naive-UTC timestamp exactly as JavaScript's `toISOString()` does.
+
+    The trailing `Z` is not decoration. `datetime.isoformat()` on a naive value
+    emits `2026-08-23T10:00:00` with no zone, and `new Date(...)` in the browser
+    reads that as *local* time — so a hold countdown would be wrong by the
+    viewer's UTC offset, silently, and only for users outside UTC.
+
+    Milliseconds are included for the same reason: the retired API emitted them,
+    and the frontend's countdown maths already assumes that shape.
+    """
+    if value is None:
+        return None
+    return f"{value.strftime('%Y-%m-%dT%H:%M:%S')}.{value.microsecond // 1000:03d}Z"
+
+
+def money(value: Decimal) -> str:
+    """
+    Render a price the way Prisma's `Decimal.toString()` did: "450", not
+    "450.000000000000000000000000000000".
+
+    The column is Numeric(65, 30), so a plain `str()` carries thirty zeros into
+    the JSON. `format(..., "f")` rather than `str(normalize())` because
+    normalize() renders whole numbers in exponent form — `Decimal("450.00")`
+    becomes `4.5E+2`, which the frontend would parse but no human would trust.
+
+    Still a string, never a float. Money must not acquire binary rounding on the
+    way to the browser.
+    """
+    return format(value.normalize(), "f")
+
+
 class Base(DeclarativeBase):
     pass
 

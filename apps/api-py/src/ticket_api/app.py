@@ -18,6 +18,8 @@ from .config import ALLOWED_ORIGINS, CONFIGURED, IS_PROD, settings
 from .db import ping
 from .errors import ApiError
 from .modules.auth.routes import router as auth_router
+from .modules.seats.routes import hold_router
+from .modules.seats.routes import show_router as seat_show_router
 
 _STARTED = time.monotonic()
 
@@ -138,6 +140,10 @@ def create_app() -> FastAPI:
         }
 
     app.include_router(auth_router, prefix="/api/v1")
+    # Seat map and holds hang off a show but belong to their own module, so
+    # they mount a second router on the same /shows prefix.
+    app.include_router(seat_show_router, prefix="/api/v1")
+    app.include_router(hold_router, prefix="/api/v1")
 
     @app.api_route(
         "/{path:path}",
