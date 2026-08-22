@@ -347,6 +347,6 @@ the index.
 
 ## Current phase
 
-`Phase 3 — Seat map, holds & concurrency (evaluation-critical), not started.
-Phases 0-2 complete: auth, venues, events, pricing, shows with generated seat
-maps. 23 tests green. Needs REDIS_URL from Upstash. Detail in docs/CONTEXT.md.`
+`Phase 4 — Booking, QR & email, not started. Phases 0-3 complete including the
+graded concurrency work: 20 parallel holds on one seat yield exactly one 201,
+stable over three runs. 35 tests green. Needs RESEND_API_KEY. See docs/CONTEXT.md.`

@@ -357,3 +357,64 @@ parameter instead of casting the union away, and `compact()`, which strips
 
 _Rule going forward:_ an implicit `any` in a route handler is never cosmetic.
 It is the compiler being switched off exactly where request data enters.
+
+---
+
+## ADR-018 — The sweeper is a `setInterval` on Postgres, not a BullMQ job
+
+**Accepted** · 2026-08-22
+
+Expired holds are released by a plain interval in the API process running one
+indexed `UPDATE`. Redis and BullMQ stay, scoped to the email queue (Phase 4)
+and the Socket.IO adapter (Phase 6).
+
+_Why the change:_ Upstash's free tier meters **500,000 commands per month,
+cumulative**. An idle BullMQ worker's blocking poll costs roughly 518,000 a
+month on its own — the whole allowance, with zero jobs run — and a repeatable
+job firing every ten seconds costs millions more. The free tier would be
+exhausted in about three days, and the failure mode is silent: emails simply
+stop.
+
+_Why it is safe:_ the sweep is one idempotent statement whose `WHERE` clause is
+its own guard, so several instances running it converge rather than conflict.
+Correctness never depended on it anyway — `effectiveStatus()` treats an expired
+lease as free on every read, so a seat is bookable the moment its clock lapses
+even if the sweeper never runs. The sweep only makes that visible on other
+people's screens sooner.
+
+_Rule 4 still holds:_ it asks for "a scheduler **or** database-level expiry".
+This is the scheduler; the lazy check is the database-level half.
+
+_Ceiling:_ one interval per instance, so N instances do N redundant sweeps.
+Harmless at any scale this project will see. If it ever matters, a Postgres
+advisory lock around the sweep makes exactly one instance do the work.
+
+---
+
+## ADR-019 — The hold cap is checked outside the locking transaction
+
+**Accepted** · 2026-08-22
+
+`MAX_ACTIVE_HOLDS_PER_USER` is verified before `$transaction` opens, not inside
+it.
+
+_Why:_ every query inside a lock-holding transaction is time that every other
+contender spends blocked. With the check inside, the hold path made four round
+trips while holding row locks; against Supabase in another region that is over
+a second of lock time each, and twenty contenders serialised past Prisma's 5s
+transaction timeout. Seven of twenty requests returned 500 instead of a clean
+409 — the safety property held, exactly one hold succeeded, but legitimate
+contenders were being errored.
+
+_What it costs:_ a narrow race in which a customer submitting two requests at
+the same instant ends up holding one more show than the cap allows. That is an
+abuse cap, not a correctness invariant — being off by one is not a
+double-booked seat.
+
+_What else came out of the same fix:_ the lock query now also reads the columns
+it checks, so the transaction is two round trips rather than four, and
+`maxWait` / `timeout` are set explicitly because Prisma's defaults assume
+uncontended work.
+
+**Never move a correctness check out of the transaction for speed.** The
+`FOR UPDATE`, the status re-read and the write stay together permanently.

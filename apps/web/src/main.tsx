@@ -6,6 +6,7 @@ import { RequireAuth } from './auth/RequireAuth.js';
 import { AppShell } from './components/AppShell.js';
 import { EventsPage } from './pages/EventsPage.js';
 import { EventDetailPage } from './pages/EventDetailPage.js';
+import { ShowPage } from './pages/ShowPage.js';
 import { LoginPage } from './pages/LoginPage.js';
 import { RegisterPage } from './pages/RegisterPage.js';
 import { AdminVenuesPage } from './pages/AdminVenuesPage.js';
@@ -24,6 +25,8 @@ createRoot(root).render(
             {/* Public */}
             <Route path="/" element={<EventsPage />} />
             <Route path="/events/:id" element={<EventDetailPage />} />
+            {/* Public: browsing the seat map needs no account. Holding one does. */}
+            <Route path="/shows/:id" element={<ShowPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
 

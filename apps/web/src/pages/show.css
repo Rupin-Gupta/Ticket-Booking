@@ -1,0 +1,101 @@
+.showpage {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.showpage__head {
+  display: grid;
+  gap: var(--space-1);
+}
+.showpage__title {
+  font-family: var(--font-brand);
+  font-weight: 400;
+  font-size: clamp(var(--text-xl), 4vw, var(--text-2xl));
+}
+.showpage__meta {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.showpage__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 19rem);
+  gap: var(--space-4);
+  align-items: start;
+}
+@media (max-width: 860px) {
+  .showpage__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.showpage__map {
+  padding: var(--space-4);
+}
+
+/* ----------------------------------------------------------------- basket */
+
+.basket {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+@media (min-width: 861px) {
+  .basket {
+    /* Follows the map on long seat layouts, clear of the sticky header */
+    position: sticky;
+    top: calc(var(--tap) + var(--space-5));
+  }
+}
+
+.basket__title {
+  font-size: var(--text-lg);
+}
+
+.basket__empty,
+.basket__note,
+.basket__soon {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.basket__seats {
+  display: grid;
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.basket__seats li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.basket__total {
+  display: flex;
+  justify-content: space-between;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+  font-variant-numeric: tabular-nums;
+}
+
+.basket__timer {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.countdown {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--seat-held);
+}
+/* Under a minute: colour shifts AND the weight is already bold, so the
+   urgency does not depend on distinguishing amber from red. */
+.countdown--urgent {
+  color: var(--danger);
+}

@@ -153,3 +153,21 @@
   font-weight: 400;
   color: var(--text-muted);
 }
+
+/* A whole row is the target — a small "choose seats" link would be a worse
+   tap target on a phone than the 44px-tall row it sits in. */
+.showrow--link {
+  text-decoration: none;
+  color: inherit;
+  transition:
+    border-color var(--duration) var(--ease),
+    background-color var(--duration) var(--ease);
+}
+.showrow--link:hover {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+}
+.showrow--link .showrow__soon {
+  color: var(--brand);
+  font-weight: 500;
+}
