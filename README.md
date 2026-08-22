@@ -5,10 +5,10 @@ visual map, held seats auto-release when checkout is abandoned, sold-out shows
 run a FIFO waitlist that auto-assigns freed seats via time-limited offers, and
 every confirmed booking emails a QR code ticket.
 
-> **Status:** Phases 0–4 complete — auth, venues and events, a live seat map
-> with concurrency-safe holds, and bookings that email a QR ticket. Phase 5
-> (waitlist) is next. Live task list in [docs/TODO.md](docs/TODO.md), current
-> state in [docs/CONTEXT.md](docs/CONTEXT.md).
+> **Status:** Phases 0–5 complete, including both evaluation-critical ones —
+> concurrency-safe seat holds and the FIFO waitlist with time-limited offers.
+> Phase 6 (real-time seat map) is next. Live task list in
+> [docs/TODO.md](docs/TODO.md), current state in [docs/CONTEXT.md](docs/CONTEXT.md).
 
 ## Documentation map
 

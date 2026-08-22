@@ -147,18 +147,27 @@ can be booked again — the case the old `@unique` made impossible.
 
 ## Phase 5 — Waitlist and time-limited offers ⭐ evaluation-critical
 
-- [ ] `POST /shows/:id/waitlist` — sold-out categories only, no duplicate entries
-- [ ] `GET /waitlist/me`, `DELETE /waitlist/:id`
-- [ ] `advanceWaitlist(showSeatId)` — FIFO, `FOR UPDATE SKIP LOCKED`
-- [ ] Cancellation calls it; offer expiry calls the _same_ function
-- [ ] `POST /waitlist/offers/:token/accept` — all five checks
-- [ ] Sweeper branch: expired offers → `EXPIRED` → `advanceWaitlist()`
-- [ ] Offer email with time-limited link
-- [ ] **Waitlist test: three waiting, cancel one → earliest `joinedAt` only**
-- [ ] Web: join waitlist, offer landing page with countdown
+- [x] `POST /shows/:id/waitlist` — sold-out categories only, no duplicate entries
+- [x] `GET /waitlist/me` (with derived queue position), `DELETE /waitlist/:id`
+- [x] `advanceWaitlist(showSeatId)` — FIFO by `joinedAt`, `FOR UPDATE SKIP LOCKED`
+- [x] Cancellation calls it; offer expiry calls the **same** function (rule 3)
+- [x] `POST /waitlist/offers/:token/accept` — all five checks
+- [x] `GET /waitlist/offers/:token` — public read, `410` once expired
+- [x] Sweeper branch: expired offers → `EXPIRED` → `advanceWaitlist()`
+- [x] Offer email with a time-limited link
+- [x] Leaving while holding an offer hands the seat straight on
+- [x] **Waitlist test: three waiting, cancel one → earliest `joinedAt` only**
+- [x] Web: waitlist panel under the seat map, offer page with countdown
+- [x] 14 more tests (66 total), all green
 
 **Done when:** an ignored offer walks down the queue automatically, and an
-expired token is refused.
+expired token is refused. ✅ **Both** — one test drives a seat through alice →
+bob → cara → back on general sale purely by letting each offer lapse.
+
+Also covered: joining is refused while seats remain; a refresh cannot buy a
+second place in line; a stranger holding the emailed link gets 403 and the seat
+is untouched; a token expired by one second is refused; a used token no longer
+resolves at all; and leaving frees the position for those behind.
 
 ## Phase 6 — Real-time seat map
 

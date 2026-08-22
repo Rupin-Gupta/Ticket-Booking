@@ -13,10 +13,10 @@ an entry here costs the next one twenty minutes of rediscovery.
 |                 |                                                                                                                     |
 | --------------- | ------------------------------------------------------------------------------------------------------------------- |
 | **Phase**       | **2 — COMPLETE.** Phase 3 (seat map, holds, concurrency) is next — evaluation-critical.                             |
-| **Runnable?**   | Yes, end to end: browse → seat map → hold → book → QR ticket by email → view → cancel → seat back on sale.          |
+| **Runnable?**   | Yes, the whole brief except realtime: browse → hold → book → QR email → cancel → waitlist offer → claim.            |
 | **Repo**        | Local git initialised. Remote `https://github.com/Rupin-Gupta/Ticket-Booking.git` — **not pushed yet, user pushes** |
 | **Blocked on**  | Nothing. All three accounts are configured and working.                                                             |
-| **Next action** | Phase 5: `advanceWaitlist()` FIFO with SKIP LOCKED, offer expiry sweeper branch, accept-offer endpoint.             |
+| **Next action** | Phase 6: Socket.IO rooms, `seat:sync` / `seat:update`, Redis adapter, retire polling.                               |
 
 Demo logins (`npm run db:seed -w apps/api`), all `password123`:
 `admin@ticket.dev`, `organiser@ticket.dev`, `customer@ticket.dev`,
@@ -26,6 +26,65 @@ Run `npm test -w apps/api` for the auth suite.
 `/health` reports which of database / redis / auth / email are configured and
 round-trips a `SELECT 1`, and the web placeholder renders that as a checklist —
 so the remaining setup is visible without reading code.
+
+---
+
+## 2026-08-22 — Session 9: Phase 5, waitlist and time-limited offers
+
+**One function, two callers (rule 3).** `advanceWaitlist(tx, showSeatId)` is
+the only implementation of "a seat became free, find the next customer".
+Booking cancellation calls it; the offer-expiry sweeper calls the same
+function. Two copies drift on exactly the clauses that matter — the FIFO
+ordering and `SKIP LOCKED` — and the bug then only appears on whichever path is
+rarer and less tested.
+
+`SKIP LOCKED` earns its place: if another transaction is already offering the
+same customer a different seat, we step over them and take the next in line
+rather than blocking and then handing one person two offers.
+
+**The loop that makes it work.** An expired offer does **not** become
+`AVAILABLE`. It marks the entry `EXPIRED` and calls `advanceWaitlist()` again,
+which either offers the seat onward or — only when the queue is genuinely
+empty — returns it to general sale. A test drives one seat through alice → bob
+→ cara → general sale purely by letting each offer lapse.
+
+**Five checks on accept, each load-bearing:** token resolves, entry still
+`OFFERED`, not expired, seat still `OFFERED`, and the caller is the customer it
+was offered to. The fifth matters because the token arrives by email and email
+gets forwarded; the fourth because a race with the sweeper could otherwise sell
+a seat already offered onward. Accepting clears the token — single use.
+
+**Structural change (ADR-022).** `writeBooking()` moved to
+`bookings/write.ts`. Checkout and offer-acceptance both create bookings, and
+`bookings/service` imports `waitlist/service`, so the shared piece had to sit
+below both. The real reason is not the cycle — it is that there must be one
+implementation of the price snapshot, the QR token and the flip to `BOOKED`.
+
+**Queue position is derived, not stored (ADR-023)** — `count(earlier WAITING) +
+1`. A stored column would need renumbering everyone behind on every departure,
+and could disagree with the order the server actually sorts by.
+
+**Found while testing:** leftover fixtures had accumulated in the shared dev
+database from earlier suites whose cleanup had partially failed. Removed by
+pattern (`<Word> <10 hex>`), leaving the seeded data and the Spiderman event
+created through the UI untouched.
+
+**Verified**
+
+66/66 tests. Typecheck clean. Web builds (307 kB / 97 kB gzipped). Live: sold
+out Premium, joined the queue at position 1, a second join was refused
+`ALREADY_WAITING`, cancelling a 6-seat booking reported
+`offeredToWaitlist: 1` with the other five going straight back on sale, the
+freed seat showed `OFFERED` rather than `AVAILABLE`, the offer was readable
+without auth, claiming as the wrong user gave 403, claiming as the right one
+produced BK-MAL6P, and reusing the token gave 404. A real offer email with the
+time-limited link was delivered.
+
+**Next session starts with**
+
+Phase 6 — Socket.IO rooms keyed `show:{showId}`, `seat:sync` on join and
+`seat:update` after every committed mutation, the Redis adapter, and retiring
+the 8-second poll.
 
 ---
 

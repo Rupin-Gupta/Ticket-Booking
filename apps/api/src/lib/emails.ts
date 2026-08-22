@@ -81,3 +81,42 @@ function escapeHtml(value: string) {
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;');
 }
+
+export function waitlistOfferEmail(input: {
+  name: string;
+  eventTitle: string;
+  venue: string;
+  startsAt: string;
+  category: string;
+  price: string;
+  minutes: number;
+  offerUrl: string;
+}) {
+  return WRAP(`
+    <p style="margin:0 0 4px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#ea580c">A seat opened up</p>
+    <h1 style="margin:0 0 12px;font-size:22px">${escapeHtml(input.eventTitle)}</h1>
+
+    <p style="margin:0 0 16px;font-size:14px;color:#475569">
+      Someone cancelled, and you were next in line for ${escapeHtml(input.category)}.
+      This seat is held for you and nobody else &mdash; but only for
+      <strong>${input.minutes} minutes</strong>. After that it goes to the next person.
+    </p>
+
+    <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+      ${row('When', escapeHtml(input.startsAt))}
+      ${row('Where', escapeHtml(input.venue))}
+      ${row('Category', escapeHtml(input.category))}
+      ${row('Price', escapeHtml(input.price))}
+    </table>
+
+    <div style="margin:24px 0;text-align:center">
+      <a href="${input.offerUrl}"
+         style="display:inline-block;padding:14px 28px;background:#ea580c;color:#ffffff;text-decoration:none;border-radius:10px;font-weight:600;font-size:15px">
+        Claim this seat
+      </a>
+    </div>
+
+    <p style="margin:0;font-size:12px;color:#64748b;word-break:break-all">
+      Or paste this link: ${input.offerUrl}
+    </p>`);
+}

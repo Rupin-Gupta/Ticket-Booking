@@ -94,13 +94,13 @@ POST /api/v1/shows/{showId}/holds
 
 ## Waitlist ⭐
 
-|     | Endpoint                              | Role     | Notes                                                                                                    |
-| --- | ------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------- |
-|     | `POST /shows/:id/waitlist`            | CUSTOMER | `{ categoryId }`. Only when the category is sold out. `409` on duplicate entry.                          |
-|     | `GET /waitlist/me`                    | CUSTOMER | Entries with queue position.                                                                             |
-|     | `DELETE /waitlist/:id`                | CUSTOMER | Leave the queue.                                                                                         |
-|     | `GET /waitlist/offers/:token`         | public   | Offer detail for the emailed link. `410` once expired.                                                   |
-|     | `POST /waitlist/offers/:token/accept` | CUSTOMER | Books the offered seat. Checks token, entry status, expiry, seat status, and caller identity — all five. |
+|     | Endpoint                              | Role     | Notes                                                                                                                                                                                                                                |
+| --- | ------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| ✅  | `POST /shows/:id/waitlist`            | any auth | `{ categoryId }`. `409 SEATS_STILL_AVAILABLE` while anything in the category is takeable (an expired lease counts as takeable). `409 ALREADY_WAITING` on a duplicate. Returns `{ id, position }`.                                    |
+| ✅  | `GET /waitlist/me`                    | any auth | Live entries only, with a **derived** queue position (ADR-023) and, for an offered entry, that customer's own `offerToken`.                                                                                                          |
+| ✅  | `DELETE /waitlist/:id`                | any auth | Owner-checked. Leaving while holding an offer hands the seat straight on rather than stranding it — `{ left, passedOn }`.                                                                                                            |
+| ✅  | `GET /waitlist/offers/:token`         | public   | Offer detail for the emailed link — the link is often opened on a phone that is not signed in. `410 OFFER_EXPIRED` once it lapses, `404` if the token is not recognised.                                                             |
+| ✅  | `POST /waitlist/offers/:token/accept` | any auth | Books the offered seat. **Five checks:** token resolves, entry still `OFFERED`, not expired, seat still `OFFERED`, and the caller is the customer it was offered to (`403` otherwise). Single use — the token is cleared on success. |
 
 ## Organiser
 

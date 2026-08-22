@@ -9,6 +9,7 @@ import { venueRoutes } from './modules/venues/routes.js';
 import { eventRoutes, showRoutes } from './modules/events/routes.js';
 import { holdRoutes, seatShowRoutes } from './modules/seats/routes.js';
 import { bookingRoutes, verifyRoutes } from './modules/bookings/routes.js';
+import { waitlistRoutes, waitlistShowRoutes } from './modules/waitlist/routes.js';
 import { prisma } from './lib/prisma.js';
 
 /**
@@ -62,10 +63,12 @@ export function createApp() {
   // A second router on the same path: seat map and holds hang off a show but
   // belong to their own module.
   api.use('/shows', seatShowRoutes);
+  api.use('/shows', waitlistShowRoutes);
   api.use('/holds', holdRoutes);
   api.use('/bookings', bookingRoutes);
   api.use('/verify', verifyRoutes);
-  // Phase 5+ mounts the rest here: waitlist, organiser.
+  api.use('/waitlist', waitlistRoutes);
+  // Phase 7 mounts the organiser dashboard here.
   app.use('/api/v1', api);
 
   app.use(notFound);
