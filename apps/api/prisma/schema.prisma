@@ -87,6 +87,13 @@ model SeatCategory {
   name    String // "Premium", "Standard"
   price   Decimal
 
+  /// Which venue sections this price band covers, e.g. ["Floor", "Balcony"].
+  /// Seats belong to a venue and categories belong to an event, so without
+  /// this there is nothing to tell instantiateShowSeats() what a seat costs.
+  /// Validated on write: every section must exist in the event's venue, and
+  /// no two categories in one event may claim the same section.
+  sections String[]
+
   showSeats       ShowSeat[]
   waitlistEntries WaitlistEntry[]
 

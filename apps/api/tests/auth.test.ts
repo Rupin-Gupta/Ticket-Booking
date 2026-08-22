@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { randomBytes } from 'node:crypto';
 import { after, before, describe, test } from 'node:test';
 import type { Server } from 'node:http';
 import express from 'express';
@@ -14,7 +15,7 @@ import { errorHandler } from '../src/middleware/error.js';
  * ponytail: no test framework, no supertest, no fixtures — node:test is stdlib
  * and the app is already an HTTP server. Add tooling when this stops fitting.
  */
-const RUN = Date.now().toString(36);
+const RUN = randomBytes(5).toString('hex');
 const emailFor = (who: string) => `test-${who}-${RUN}@example.test`;
 const PASSWORD = 'correct horse battery';
 
