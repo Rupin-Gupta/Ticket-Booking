@@ -3,26 +3,31 @@
   "private": true,
   "version": "0.1.0",
   "description": "Ticket booking platform for movies and concerts",
+  "//": "The API is Python and is NOT an npm workspace — see apps/api/pyproject.toml. Workspaces are listed explicitly rather than as apps/* so npm does not try to resolve apps/api as a package.",
   "workspaces": [
-    "apps/*",
-    "packages/*"
+    "apps/web",
+    "packages/shared"
   ],
   "engines": {
     "node": ">=20.12"
   },
   "scripts": {
     "dev": "concurrently -n api,web -c yellow,cyan \"npm:dev:api\" \"npm:dev:web\"",
-    "dev:api": "npm run dev -w apps/api",
+    "dev:api": "cd apps/api && .venv/bin/uvicorn ticket_api.main:asgi --reload --port 4000",
     "dev:web": "npm run dev -w apps/web",
     "build": "npm run build -w apps/web",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "db:migrate": "npm run db:migrate -w apps/api --",
-    "db:generate": "npm run db:generate -w apps/api",
-    "db:studio": "npm run db:studio -w apps/api",
+    "test": "cd apps/api && NODE_ENV=test .venv/bin/python -m pytest",
+    "test:db:up": "docker compose up -d db",
+    "test:db:down": "docker compose down -v",
+    "lint:api": "cd apps/api && .venv/bin/python -m ruff check src tests && .venv/bin/python -m ruff format --check src tests",
+    "db:migrate": "cd apps/api && .venv/bin/python -m alembic revision --autogenerate -m",
+    "db:deploy": "cd apps/api && .venv/bin/python -m alembic upgrade head",
+    "db:deploy:test": "cd apps/api && NODE_ENV=test .venv/bin/python -m alembic upgrade head",
     "zip": "git archive --format=zip --prefix=ticket-booking-system/ -o ticket-booking-system.zip HEAD",
-    "start": "npm run start -w apps/api"
+    "start": "cd apps/api && .venv/bin/uvicorn ticket_api.main:asgi --host 0.0.0.0 --port 4000"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",

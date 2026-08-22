@@ -9,29 +9,37 @@
 services:
   - type: web
     name: ticket-booking-api
-    runtime: node
+    runtime: python
     plan: free
     region: singapore # match your Supabase region — cross-region adds ~200ms per query
-    rootDir: .
-    # Install everything (workspaces), generate the Prisma client, then apply
-    # any pending migrations. `migrate deploy` is the non-interactive form and
-    # uses DIRECT_URL, which is why both connection strings are required.
-    buildCommand: npm ci && npm run db:generate -w apps/api && npm run db:deploy -w apps/api
-    startCommand: npm run start -w apps/api
+    rootDir: apps/api
+    # Install the package, then apply any pending migrations. Alembic runs
+    # against DIRECT_URL (session pooler, :5432) rather than the transaction
+    # pooler, because pgbouncer cannot hold the advisory lock a migration takes.
+    # That is why both connection strings are required.
+    buildCommand: pip install --upgrade pip && pip install -e . && alembic upgrade head
+    # One worker, deliberately. The free plan has 512MB, Socket.IO connections
+    # are stateful, and a second worker without the Redis manager wired would
+    # silently drop half of every broadcast (rule 15).
+    startCommand: uvicorn ticket_api.main:asgi --host 0.0.0.0 --port $PORT --workers 1
     healthCheckPath: /health
 
     envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
       - key: NODE_ENV
+        # Kept as NODE_ENV rather than renamed: it is the deployment contract
+        # every existing environment already sets, and config.py reads it.
         value: production
-      # Render injects PORT; env.ts reads it.
+      # Render injects PORT; the start command passes it to uvicorn.
       - key: WEB_URL
         sync: false # set to the Vercel URL — this is the CORS allowlist
       - key: DATABASE_URL
-        sync: false # Supabase TRANSACTION pooler, :6543, ?pgbouncer=true
+        sync: false # Supabase TRANSACTION pooler, :6543
       - key: DIRECT_URL
         sync: false # Supabase SESSION pooler, :5432 — migrations only
       - key: REDIS_URL
-        sync: false # Upstash rediss:// — the email queue and socket adapter
+        sync: false # Upstash rediss:// — the email queue and socket manager
       - key: JWT_SECRET
         sync: false # openssl rand -base64 48
       - key: RESEND_API_KEY
@@ -51,3 +59,20 @@ services:
         value: 6
       - key: MAX_ACTIVE_HOLDS_PER_USER
         value: 2
+
+  # The email worker. Separate from the web service because a request handler
+  # must never wait on a mail provider, and because a worker that crashes
+  # should not take the API down with it.
+  #
+  # Commented out rather than deleted: Render's free plan allows one service.
+  # Uncomment on a paid plan, or run it anywhere that can reach the same Redis.
+  #
+  # - type: worker
+  #   name: ticket-booking-email-worker
+  #   runtime: python
+  #   plan: starter
+  #   rootDir: apps/api
+  #   buildCommand: pip install --upgrade pip && pip install -e .
+  #   startCommand: arq ticket_api.jobs.email_queue.WorkerSettings
+  #   envVars:
+  #     - fromGroup: ticket-booking-api
