@@ -67,12 +67,12 @@ here; no API route can grant either role.
 
 ## Seat map and holds ⭐
 
-|     | Endpoint                | Role     | Notes                                                                                                                |
-| --- | ----------------------- | -------- | -------------------------------------------------------------------------------------------------------------------- |
-|     | `GET /shows/:id/seats`  | public   | Explicit select. Returns effective status — an expired lease reads as `AVAILABLE`. **Never returns `heldByUserId`.** |
-|     | `POST /shows/:id/holds` | CUSTOMER | `{ seatIds[] }`. Locked transaction, all-or-nothing. `201` with `holdExpiresAt`, or `409`. Capped and rate limited.  |
-|     | `GET /holds/me`         | CUSTOMER | Active holds for the current user.                                                                                   |
-|     | `DELETE /holds/:id`     | CUSTOMER | Explicit release; frees the seats immediately.                                                                       |
+|     | Endpoint                  | Role     | Notes                                                                                                                                                                                                                                      |
+| --- | ------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| ✅  | `GET /shows/:id/seats`    | public   | Explicit select. Returns **effective** status — an expired lease reads as `AVAILABLE` regardless of the stored row. `heldByUserId` is never serialised; a signed-in caller gets `heldByMe` and, only for their own seats, `holdExpiresAt`. |
+| ✅  | `POST /shows/:id/holds`   | any auth | `{ seatIds[] }`. Locked transaction, all-or-nothing. `201 { showId, seatIds, holdExpiresAt }`, or `409 SEAT_UNAVAILABLE`. Capped at `MAX_SEATS_PER_HOLD` per request and `MAX_ACTIVE_HOLDS_PER_USER` shows at once; 20/min per IP.         |
+| ✅  | `GET /holds/me`           | any auth | Active, unexpired holds with seat labels, prices and the show they belong to.                                                                                                                                                              |
+| ✅  | `DELETE /shows/:id/holds` | any auth | Releases the caller's own held seats on that show. `{ released: n }`. Scoped by `heldByUserId` — it can never free somebody else's seat.                                                                                                   |
 
 ```http
 POST /api/v1/shows/{showId}/holds

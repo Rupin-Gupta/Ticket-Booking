@@ -34,3 +34,15 @@ export const registerLimiter = limiter(
   'TOO_MANY_REGISTRATIONS',
   'Too many accounts created from this address. Try again later.',
 );
+
+/**
+ * Holds are the contended endpoint — this is the one a script would hammer to
+ * lock a venue. Generous enough that a real person picking seats, changing
+ * their mind and picking again never sees it.
+ */
+export const holdLimiter = limiter(
+  60_000,
+  20,
+  'TOO_MANY_HOLD_ATTEMPTS',
+  'Too many seat requests. Wait a moment and try again.',
+);

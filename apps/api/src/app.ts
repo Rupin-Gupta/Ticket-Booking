@@ -7,6 +7,7 @@ import { errorHandler, notFound } from './middleware/error.js';
 import { authRoutes } from './modules/auth/routes.js';
 import { venueRoutes } from './modules/venues/routes.js';
 import { eventRoutes, showRoutes } from './modules/events/routes.js';
+import { holdRoutes, seatShowRoutes } from './modules/seats/routes.js';
 import { prisma } from './lib/prisma.js';
 
 /**
@@ -57,7 +58,11 @@ export function createApp() {
   api.use('/venues', venueRoutes);
   api.use('/events', eventRoutes);
   api.use('/shows', showRoutes);
-  // Phase 3+ mounts the rest here: holds, bookings, waitlist, organiser.
+  // A second router on the same path: seat map and holds hang off a show but
+  // belong to their own module.
+  api.use('/shows', seatShowRoutes);
+  api.use('/holds', holdRoutes);
+  // Phase 4+ mounts the rest here: bookings, waitlist, organiser.
   app.use('/api/v1', api);
 
   app.use(notFound);

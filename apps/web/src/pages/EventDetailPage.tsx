@@ -54,16 +54,14 @@ export function EventDetailPage() {
             <ul className="shows">
               {event.shows.map((show) => (
                 <li key={show.id}>
-                  {/* Phase 3 turns this into a link to the seat map. Until then
-                      it is deliberately inert rather than a link that 404s. */}
-                  <div className="showrow">
+                  <Link to={`/shows/${show.id}`} className="showrow showrow--link">
                     <time className="showrow__when" dateTime={isoDate(show.startsAt)}>
                       <span className="showrow__date">{formatShowDate(show.startsAt)}</span>
                       <span className="showrow__time">{formatShowTime(show.startsAt)}</span>
                     </time>
                     <span className="showrow__seats">{show._count?.showSeats ?? 0} seats</span>
-                    <span className="showrow__soon">Seat map arrives in Phase 3</span>
-                  </div>
+                    <span className="showrow__soon">Choose seats →</span>
+                  </Link>
                 </li>
               ))}
             </ul>

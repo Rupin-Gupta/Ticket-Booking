@@ -13,10 +13,10 @@ an entry here costs the next one twenty minutes of rediscovery.
 |                 |                                                                                                                     |
 | --------------- | ------------------------------------------------------------------------------------------------------------------- |
 | **Phase**       | **2 — COMPLETE.** Phase 3 (seat map, holds, concurrency) is next — evaluation-critical.                             |
-| **Runnable?**   | Yes. Browse and filter events, view detail and pricing, build venues, create events and shows.                      |
+| **Runnable?**   | Yes. Browse → pick a show → select seats on a live map → hold them on a countdown → release.                        |
 | **Repo**        | Local git initialised. Remote `https://github.com/Rupin-Gupta/Ticket-Booking.git` — **not pushed yet, user pushes** |
-| **Blocked on**  | **Upstash `REDIS_URL` is needed for Phase 3's hold sweeper.** Resend by Phase 4.                                    |
-| **Next action** | Phase 3: `GET /shows/:id/seats`, the locked hold transaction, the sweeper, and the 20-parallel-request test.        |
+| **Blocked on**  | **Resend API key needed for Phase 4's QR ticket email.** Redis is set up and idle until then.                       |
+| **Next action** | Phase 4: `POST /bookings`, QR token + generation, queued email worker, booking history and cancel.                  |
 
 Demo logins (`npm run db:seed -w apps/api`), all `password123`:
 `admin@ticket.dev`, `organiser@ticket.dev`, `customer@ticket.dev`,
@@ -26,6 +26,78 @@ Run `npm test -w apps/api` for the auth suite.
 `/health` reports which of database / redis / auth / email are configured and
 round-trips a `SELECT 1`, and the web placeholder renders that as a checklist —
 so the remaining setup is visible without reading code.
+
+---
+
+## 2026-08-22 — Session 7: Phase 3, seat map, holds, concurrency
+
+**The graded phase.** Seat map endpoint, the locked hold transaction, lazy
+expiry, the sweeper, the 20-parallel-request test, and the seat grid UI.
+
+**The failure that mattered, and the fix**
+
+First run of the concurrency test: **exactly one 201** — the safety property
+held, no double-sell — but **seven of twenty returned 500** instead of a clean 409.
+
+Cause was time, not logic. Single requests take ~1.1s against Supabase in
+another region, and the transaction made four round trips while holding row
+locks. Twenty contenders serialise by design, so the later ones blew past
+Prisma's defaults: 2s to acquire a connection, 5s to finish a transaction.
+
+Fixed by shortening the transaction rather than lengthening the timeout:
+
+- the `FOR UPDATE` query now **also reads the columns it checks**, so the lock
+  is held for two round trips instead of four
+- `FOR UPDATE OF ss` locks only `ShowSeat`, not the joined `Seat` rows, which
+  would have serialised unrelated shows in the same venue
+- the abuse cap moved outside the transaction (ADR-019) — it is not a
+  correctness invariant, and every query under a lock is time other contenders
+  spend blocked
+- `maxWait` and `timeout` set explicitly, because Prisma's defaults assume
+  uncontended work
+
+The `FOR UPDATE`, the status re-read and the write stay together permanently.
+Only the cap moved.
+
+Now stable: 20/20 correct across three consecutive runs.
+
+**Sweeper is not BullMQ (ADR-018)**
+
+Upstash meters 500,000 commands per month, cumulatively. An idle BullMQ
+worker's blocking poll costs ~518,000 on its own, and a 10-second repeatable
+job costs millions — the free tier would die in about three days, silently.
+The sweep is one idempotent indexed `UPDATE`; it runs on `setInterval` against
+a database we are already connected to. Redis stays for email (Phase 4) and the
+Socket.IO adapter (Phase 6), where it is genuinely needed.
+
+**Route deviation**
+
+`DELETE /holds/:id` became `DELETE /shows/:id/holds`. Holds live on `ShowSeat`
+rows, so a hold "id" would need a `Hold` table duplicating state `ShowSeat`
+already owns — the second source of truth ADR-001 exists to avoid.
+
+**Frontend**
+
+Seat map as a grid of real buttons, not an SVG: every seat is then focusable
+with an accessible name carrying its status, so the map is keyboard-operable
+for free. States differ in fill and hatching as well as hue — held-by-someone
+-else is hatched, held-by-you is solid — because colour alone fails for roughly
+one man in twelve. Countdown derives from the server's absolute expiry on every
+tick, so a slept laptop cannot show time remaining on a seat already released.
+Polling at 8s until Socket.IO replaces it in Phase 6.
+
+**Verified**
+
+35/35 tests green, concurrency suite stable over three runs. Typecheck clean.
+Web builds (271 kB / 85 kB gzipped). Live: two real customers racing one seat
+over HTTP → 201/409, `SEAT_UNAVAILABLE`; seat map has no `heldByUserId`
+anywhere in the response body; the holder sees `heldByMe` and a countdown while
+the other customer sees neither; release freed exactly one seat.
+
+**Next session starts with**
+
+Phase 4 — `POST /bookings` from held seats, `qrToken`, the queued email worker,
+booking history and cancel. **Needs `RESEND_API_KEY`.**
 
 ---
 

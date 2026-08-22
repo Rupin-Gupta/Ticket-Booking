@@ -1,0 +1,135 @@
+.seatmap {
+  --seat-size: 28px;
+  display: grid;
+  gap: var(--space-4);
+}
+
+@media (max-width: 640px) {
+  .seatmap {
+    --seat-size: 24px;
+  }
+}
+
+.seatmap__scroll {
+  overflow-x: auto;
+  padding: var(--space-4) 0;
+}
+
+.seatmap__grid {
+  display: grid;
+  gap: 4px;
+  justify-content: center;
+  min-width: min-content;
+}
+
+.seat {
+  display: grid;
+  place-items: center;
+  width: var(--seat-size);
+  height: var(--seat-size);
+  padding: 0;
+  border: 1px solid;
+  /* Rounded at the bottom only — reads as a chair from across the room */
+  border-radius: 5px 5px 8px 8px;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  transition:
+    background-color var(--duration-fast) var(--ease),
+    border-color var(--duration-fast) var(--ease),
+    color var(--duration-fast) var(--ease);
+}
+
+/*
+  Every state differs in more than hue: available is an outline, selected is
+  filled solid, held and booked are muted, and each carries its status in its
+  accessible name. Roughly one man in twelve cannot separate the teal from the
+  amber, and colour alone would make the map unusable for them.
+*/
+.seat--available {
+  background: var(--seat-free-bg);
+  border-color: var(--seat-free);
+  color: var(--seat-free);
+}
+.seat--available:hover:not(:disabled) {
+  border-color: var(--brand);
+  color: var(--brand);
+}
+
+.seat--selected {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: var(--brand-ink);
+  font-weight: 600;
+}
+
+.seat--mine {
+  background: var(--seat-held-bg);
+  border-color: var(--seat-held);
+  color: var(--seat-held);
+  font-weight: 600;
+}
+
+.seat--held {
+  background: var(--seat-held-bg);
+  border-color: var(--seat-held);
+  color: var(--seat-held);
+  /* Hatching separates "someone else's" from "yours" without a second hue */
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent 0 3px,
+    color-mix(in srgb, var(--seat-held) 30%, transparent) 3px 5px
+  );
+}
+
+.seat--offered {
+  background: var(--seat-offered-bg);
+  border-color: var(--seat-offered);
+  color: var(--seat-offered);
+}
+
+.seat--booked {
+  background: var(--seat-booked-bg);
+  border-color: var(--seat-booked);
+  color: var(--text-faint);
+}
+
+.seat:disabled {
+  cursor: not-allowed;
+}
+.seat:not(:disabled) {
+  cursor: pointer;
+}
+
+.seat--chip {
+  width: 16px;
+  height: 16px;
+  font-size: 0;
+}
+
+.seatmap__screen {
+  margin-top: var(--space-4);
+  padding-top: var(--space-2);
+  border-top: 2px solid var(--border-strong);
+  text-align: center;
+  font-size: var(--text-xs);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.seatmap__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.seatmap__legend li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}

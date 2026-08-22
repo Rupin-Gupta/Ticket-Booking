@@ -27,7 +27,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
       `DIRECT_URL` (`:5432`) set
 - [x] `JWT_SECRET` generated
 - [x] First migration applied — `20260822094817_init`, all 10 tables live
-- [ ] Upstash Redis created, `REDIS_URL` set ← user action, **needed by Phase 3**
+- [x] Upstash Redis created, `REDIS_URL` set — TCP `rediss://`, not the REST URL
 - [ ] Resend account, `RESEND_API_KEY` set ← user action, **needed by Phase 4**
 
 **Done when:** `npm run dev` starts both apps, `/health` returns 200, and
@@ -93,18 +93,32 @@ gets 403 on someone else's event with the row left untouched.
 
 ## Phase 3 — Seat map, holds, concurrency ⭐ evaluation-critical
 
-- [ ] `GET /shows/:id/seats` — explicit select, no `heldByUserId`
-- [ ] `POST /shows/:id/holds` — locked transaction, `ORDER BY id FOR UPDATE`
-- [ ] Lazy expiry treated as free everywhere a seat is read for mutation
-- [ ] `DELETE /holds/:id` — explicit release
-- [ ] `MAX_SEATS_PER_HOLD` + `MAX_ACTIVE_HOLDS_PER_USER` caps
-- [ ] Rate limit on hold creation
-- [ ] BullMQ repeatable sweeper — expired holds → `AVAILABLE`
-- [ ] **Concurrency test: 20 parallel holds on one seat → exactly one 201**
-- [ ] Web: seat grid with status colours, selection, hold countdown timer
+- [x] `GET /shows/:id/seats` — explicit select, `heldByUserId` never serialised
+- [x] `POST /shows/:id/holds` — locked transaction, `ORDER BY ss.id FOR UPDATE OF ss`
+- [x] Lazy expiry (`effectiveStatus`) applied on every read and every mutation
+- [x] `DELETE /shows/:id/holds` — releases only the caller's own seats
+- [x] `GET /holds/me`
+- [x] `MAX_SEATS_PER_HOLD` + `MAX_ACTIVE_HOLDS_PER_USER` caps
+- [x] Rate limit on hold creation (20/min)
+- [x] Sweeper — `setInterval` on Postgres, not BullMQ (ADR-018)
+- [x] **Concurrency test: 20 parallel holds on one seat → exactly one 201**
+- [x] Web: seat grid with status, selection, basket, hold countdown, release
 
 **Done when:** the concurrency test is green and the DB shows exactly one `HELD`
-row after 20 simultaneous attempts.
+row after 20 simultaneous attempts. ✅ **Both, and stable across three
+consecutive runs.**
+
+Also covered: overlapping seat pairs requested in opposite orders produce one
+201 and one 409 with no deadlock and no partial hold; an expired hold is
+bookable without the sweeper having run; the seat map reports an expired hold
+as `AVAILABLE`; the sweeper clears expired rows and leaves live ones; the
+response body contains no `heldByUserId` at all; and the per-request cap,
+duplicate seat ids, foreign seats and missing auth are all rejected.
+
+> `DELETE /holds/:id` in the original route sketch became
+> `DELETE /shows/:id/holds`. Holds live on `ShowSeat` rows, so a hold "id"
+> would need a `Hold` table duplicating state that `ShowSeat` already owns —
+> exactly the second source of truth ADR-001 exists to avoid.
 
 ## Phase 4 — Booking, QR, email
 
