@@ -254,34 +254,63 @@ device that never ran the project.
 - [ ] OpenAPI spec
 - [ ] Error tracking (Sentry free tier)
 
-## Phase 10 — Differentiation beyond the brief (optional)
+## Phase 10 — Beyond the brief
 
-Full reasoning, prior-art research and effort estimates:
-**[docs/FEATURE_BACKLOG.md](FEATURE_BACKLOG.md)**
+Specs: [venue capabilities and booking flow](superpowers/specs/2026-08-23-venue-capabilities-and-booking-flow-design.md)
+· [seat signals and accessibility](superpowers/specs/2026-08-22-seat-signals-and-accessibility-design.md)
+· research and prior art: [FEATURE_BACKLOG.md](FEATURE_BACKLOG.md)
 
-- [ ] **Prerequisite: separate test database.** Tests currently write into the
-      database serving the live site. A second free Supabase project plus
-      `DATABASE_URL_TEST`. Do this before anything below — each item adds tests.
-- [ ] **Cancellation-rate seat quality** — the data is already in `Booking`,
-      entirely unread. ~½ day
-- [ ] **Hesitation Index** ⭐ — seat quality from _abandoned holds_. The one
-      genuinely nobody has, because nobody keeps hold telemetry. ~1 day
-- [ ] **Dead-seat heatmap** (organiser) — not novel, but completes the
-      seat-intelligence trio with the two above. ~½ day
-- [ ] **Preference-aware waitlist + honest odds** — "2 together, rows A–F, under
-      ₹500", and a real probability instead of false hope. ~2 days
-- [ ] **Seat-swap matchmaking** — no platform found that does this. ~2 days
-- [ ] **Automatic pre-show upgrades** — Ticketmaster does this manually via box
-      office; automating it is unshipped. ~1 day
-- [ ] **Accessibility-aware seating** — wheelchair space + companion seat held
-      atomically. Documented demand: a public petition against BookMyShow. ~1 day
-- [ ] **Shared-hold group booking** — N browsers, one clock, atomic commit.
-      Strongest engineering claim, weakest novelty claim. ~2–3 days
+### Milestone 0 — prerequisite
 
-> Three earlier ideas were **cut after checking real platforms**: transfer with
-> revocation (Ticketmaster SafeTix rotates barcodes already), conditional
-> cancellation (DICE's Wait List is exactly this), and treating the dead-seat
-> heatmap as novel (venue analytics tools have done it for years).
+- [ ] **Separate test database.** Tests currently write into the database
+      serving the live site. Second free Supabase project, `DATABASE_URL_TEST`,
+      and a test script that **refuses to run** without it rather than silently
+      falling back to production.
+
+### Milestone 1 — venue capabilities, scheduling, booking flow
+
+- [ ] `Venue.stageLayout` (END_STAGE / CENTRE_STAGE) + radial seat generation
+- [ ] `Venue.allowedEventTypes` + `turnaroundMinutes`; centre-stage cannot allow MOVIE
+- [ ] `Show.durationMinutes` / `endsAt` / `occupiesUntil`, organiser supplies duration
+- [ ] **No double-booking a venue** — app-level check plus a Postgres GiST
+      exclusion constraint, partial on `status` so a cancelled show frees its slot
+- [ ] Section-wise pricing UI showing each section's seat count
+- [ ] **Three-page flow** — select (no lock) → Continue (locks) → checkout → ticket
+- [ ] **Two clocks** — 5 min abandonment, 15 s explicit back. Back _shortens_
+      the hold rather than deleting it
+
+### Milestone 2 — show lifecycle
+
+- [ ] Cancel a show: fan-out cancellation, notify every customer, close waitlists
+- [ ] Organiser cancels their own; admin cancels anything
+
+### Milestone 3 — evaluation criteria (highest grade impact, do first if time is short)
+
+- [ ] **Concurrency Lab** — an in-app page firing 50 parallel holds at one seat,
+      rendering the result live. Turns the strongest claim into a demonstration
+- [ ] **Check-in + scanner** — `checkedInAt`; a second scan says "already admitted
+      at 19:42". Today a QR verifies infinitely, which is a real gap
+- [ ] **OpenAPI spec + browsable docs** generated from the existing Zod schemas
+
+### Milestone 4 — seat map hierarchy
+
+- [ ] Row labels down both sides; section bands naming section, category, price
+- [ ] Tier by **price rank**, never by category name
+- [ ] Centre-stage rendering; live viewer presence count
+
+### Milestone 5 — seat signals
+
+- [ ] `SeatEvent` capture, written **after commit**, never inside the lock
+- [ ] Hesitation Index ⭐ and cancellation-rate quality; organiser-visible with a
+      per-event publish toggle
+
+### Milestone 6 — verifiable fairness
+
+- [ ] Signed waitlist receipts and a hash-chained offer log a customer can check
+
+### Milestone 7 — accessible seating
+
+- [ ] Wheelchair space + companion held and booked atomically
 
 ---
 

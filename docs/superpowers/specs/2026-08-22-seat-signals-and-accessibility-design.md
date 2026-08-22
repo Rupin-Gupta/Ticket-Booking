@@ -1,7 +1,15 @@
 # Seat signals and accessible seating — design
 
 **Date:** 2026-08-22
-**Status:** approved, ready for implementation planning
+**Status:** approved; **superseded in part** — see the note below
+**Milestones:** 4, 5, 7
+
+> **Later decisions that change this document.** Stage layout moved from a
+> per-event projection to stored venue geometry
+> ([2026-08-23 spec](2026-08-23-venue-capabilities-and-booking-flow-design.md)),
+> so Feature C's tiering and section bands render against coordinates the venue
+> builder already produced — including radial ones — with no projection step.
+> Standing / general-admission sections were dropped from scope entirely.
 
 Three features on top of the completed brief:
 
