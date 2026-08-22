@@ -23,7 +23,6 @@ dependencies = [
   "arq>=0.26",
   "qrcode[pil]>=8.0",
   "resend>=2.4",
-  "slowapi>=0.1.9",
 ]
 
 [project.optional-dependencies]
