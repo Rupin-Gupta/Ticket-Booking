@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Awaitable, Callable
+from contextlib import asynccontextmanager
 from typing import Literal
 
 from fastapi import FastAPI, Request
@@ -15,13 +16,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 
 from .config import ALLOWED_ORIGINS, CONFIGURED, IS_PROD, settings
-from .db import ping
+from .db import dispose, ping
 from .errors import ApiError
+from .jobs.sweeper import start_sweeper, stop_sweeper
 from .modules.auth.routes import router as auth_router
 from .modules.bookings.routes import router as booking_router
 from .modules.bookings.routes import verify_router
 from .modules.events.routes import event_router
 from .modules.events.routes import show_router as event_show_router
+from .modules.organiser.routes import router as organiser_router
 from .modules.seats.routes import hold_router
 from .modules.seats.routes import show_router as seat_show_router
 from .modules.venues.routes import router as venue_router
@@ -57,8 +60,26 @@ async def database_status() -> Literal["up", "unreachable"]:
     return "up" if await ping() else "unreachable"
 
 
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    """
+    Starts the sweeper with the process and drains it on shutdown.
+
+    Draining matters: cutting a sweep off mid-transaction would leave seats
+    locked until Postgres notices the connection is gone, and the pool has to be
+    disposed or the process will not exit.
+    """
+    task = start_sweeper()
+    try:
+        yield
+    finally:
+        await stop_sweeper(task)
+        await dispose()
+
+
 def create_app() -> FastAPI:
     app = FastAPI(
+        lifespan=lifespan,
         title="Ticket Booking API",
         version="1.0.0",
         description="Seat holds with row-level locking, FIFO waitlist offers, QR tickets.",
@@ -158,6 +179,7 @@ def create_app() -> FastAPI:
     app.include_router(waitlist_router, prefix="/api/v1")
     app.include_router(booking_router, prefix="/api/v1")
     app.include_router(verify_router, prefix="/api/v1")
+    app.include_router(organiser_router, prefix="/api/v1")
 
     @app.api_route(
         "/{path:path}",
