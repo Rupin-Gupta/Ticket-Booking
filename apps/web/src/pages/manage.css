@@ -240,3 +240,9 @@
   border: 1px solid;
   border-radius: 3px;
 }
+
+.manage__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

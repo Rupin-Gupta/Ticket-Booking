@@ -11,6 +11,7 @@ import { LoginPage } from './pages/LoginPage.js';
 import { RegisterPage } from './pages/RegisterPage.js';
 import { AdminVenuesPage } from './pages/AdminVenuesPage.js';
 import { OrganiserPage } from './pages/OrganiserPage.js';
+import { DashboardPage } from './pages/DashboardPage.js';
 import { BookingsPage } from './pages/BookingsPage.js';
 import { TicketPage } from './pages/TicketPage.js';
 import { VerifyPage } from './pages/VerifyPage.js';
@@ -48,6 +49,14 @@ createRoot(root).render(
               element={
                 <RequireAuth roles={['ORGANISER', 'ADMIN']}>
                   <OrganiserPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/manage/:id"
+              element={
+                <RequireAuth roles={['ORGANISER', 'ADMIN']}>
+                  <DashboardPage />
                 </RequireAuth>
               }
             />

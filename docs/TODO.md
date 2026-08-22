@@ -191,14 +191,22 @@ release broadcasts `AVAILABLE` to everyone watching.
 
 ## Phase 7 — Organiser dashboard and polish
 
-- [ ] `GET /organiser/events/:id/summary` — bookings, seats sold, revenue by category
-- [ ] Web: organiser dashboard with the numbers and a per-show breakdown
-- [ ] `ui-ux-pro-max` pass over the whole frontend
-- [ ] Loading / empty / error states everywhere, accessible seat grid
-- [ ] Mobile layout for the seat map
+- [x] `GET /organiser/events/:id/summary` — revenue, seats sold, capacity,
+      bookings, cancellations and waitlist depth, by category **and** by show
+- [x] Web: dashboard with a summary row, per-category bars and a per-show table
+- [x] Design system applied consistently (established Phase 1, not regenerated)
+- [x] Loading / empty / error states on every screen, accessible seat grid
+- [x] Mobile: seat map and every table scroll in their own container
+- [x] 7 more tests (79 total), all green
 
 **Done when:** revenue reconciles against `priceAtBooking` sums, and cancelled
-bookings are excluded.
+bookings are excluded. ✅ **Both, asserted three ways** — the summary is
+compared against the raw `BookingSeat` rows, the per-category totals and the
+per-show totals must each sum to the headline figure.
+
+Also covered: a customer gets 403 and another organiser gets 403 on someone
+else's revenue; an unsold event reports zeroes without dividing by zero; and
+re-pricing a category to 999 does not move a single rupee of past revenue.
 
 ## Phase 8 — Deploy, document, verify
 

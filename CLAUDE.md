@@ -357,7 +357,7 @@ the index.
 
 ## Current phase
 
-`Phase 7 — Organiser dashboard & polish, not started. Phases 0-6 complete:
-both graded phases plus live Socket.IO seat updates. 72 tests green. The whole
-brief works end to end; what remains is revenue reporting, polish and deploy.
-Detail in docs/CONTEXT.md.`
+`Phase 8 — Deploy, document, verify. Phases 0-7 complete: the entire brief is
+built and working locally, 79 tests green, including both graded phases and
+revenue reporting. What remains is deployment, the README, SYSTEM_DESIGN.md and
+the zip. Detail in docs/CONTEXT.md.`

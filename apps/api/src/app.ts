@@ -10,6 +10,7 @@ import { eventRoutes, showRoutes } from './modules/events/routes.js';
 import { holdRoutes, seatShowRoutes } from './modules/seats/routes.js';
 import { bookingRoutes, verifyRoutes } from './modules/bookings/routes.js';
 import { waitlistRoutes, waitlistShowRoutes } from './modules/waitlist/routes.js';
+import { organiserRoutes } from './modules/organiser/routes.js';
 import { prisma } from './lib/prisma.js';
 
 /**
@@ -68,7 +69,7 @@ export function createApp() {
   api.use('/bookings', bookingRoutes);
   api.use('/verify', verifyRoutes);
   api.use('/waitlist', waitlistRoutes);
-  // Phase 7 mounts the organiser dashboard here.
+  api.use('/organiser', organiserRoutes);
   app.use('/api/v1', api);
 
   app.use(notFound);

@@ -104,10 +104,10 @@ POST /api/v1/shows/{showId}/holds
 
 ## Organiser
 
-|     | Endpoint                            | Role      | Notes                                                                             |
-| --- | ----------------------------------- | --------- | --------------------------------------------------------------------------------- |
-|     | `GET /organiser/events`             | ORGANISER | Own events only.                                                                  |
-|     | `GET /organiser/events/:id/summary` | ORGANISER | Bookings, seats sold, revenue by category, per show. Excludes cancelled bookings. |
+|     | Endpoint                            | Role      | Notes                                                                                                                                                                                                      |
+| --- | ----------------------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ✅  | `GET /events/mine`                  | ORGANISER | Own events only; ADMIN sees all. (Lives under `/events`, not `/organiser`.)                                                                                                                                |
+| ✅  | `GET /organiser/events/:id/summary` | ORGANISER | Revenue, seats sold, capacity, bookings, cancellations and waitlist depth — totalled, by category and by show. Ownership-checked. Revenue sums `priceAtBooking` and excludes cancelled bookings (ADR-026). |
 
 ## Realtime (Socket.IO)
 

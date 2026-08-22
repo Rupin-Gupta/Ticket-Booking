@@ -5,11 +5,11 @@ visual map, held seats auto-release when checkout is abandoned, sold-out shows
 run a FIFO waitlist that auto-assigns freed seats via time-limited offers, and
 every confirmed booking emails a QR code ticket.
 
-> **Status:** Phases 0–6 complete — the whole brief works end to end, including
+> **Status:** Phases 0–7 complete — the entire brief is built and working:
 > concurrency-safe holds, the FIFO waitlist with time-limited offers, QR ticket
-> emails, and a live seat map. Phase 7 (organiser dashboard) is next. Live task
-> list in [docs/TODO.md](docs/TODO.md), current state in
-> [docs/CONTEXT.md](docs/CONTEXT.md).
+> emails, a live seat map and organiser revenue reporting. 79 tests green. Only
+> deployment and the write-up remain. Live task list in
+> [docs/TODO.md](docs/TODO.md), current state in [docs/CONTEXT.md](docs/CONTEXT.md).
 
 ## Documentation map
 
