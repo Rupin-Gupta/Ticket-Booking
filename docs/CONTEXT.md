@@ -16,7 +16,7 @@ an entry here costs the next one twenty minutes of rediscovery.
 | **Runnable?**   | Yes — the entire brief works, live. Two browsers on one show now update each other without refreshing.              |
 | **Repo**        | Local git initialised. Remote `https://github.com/Rupin-Gupta/Ticket-Booking.git` — **not pushed yet, user pushes** |
 | **Blocked on**  | Nothing. All three accounts are configured and working.                                                             |
-| **Next action** | Phase 8: deploy to Render + Vercel, the keep-alive cron, README, `SYSTEM_DESIGN.md`, zip.                           |
+| **Next action** | Owner pushes. Then: Render Blueprint, Vercel, set `WEB_URL` + `API_URL`, seed, smoke-test, zip.                     |
 
 Demo logins (`npm run db:seed -w apps/api`), all `password123`:
 `admin@ticket.dev`, `organiser@ticket.dev`, `customer@ticket.dev`,
@@ -26,6 +26,56 @@ Run `npm test -w apps/api` for the auth suite.
 `/health` reports which of database / redis / auth / email are configured and
 round-trips a `SELECT 1`, and the web placeholder renders that as a checklist —
 so the remaining setup is visible without reading code.
+
+---
+
+## 2026-08-22 — Session 12: Phase 8 groundwork — docs and deploy config
+
+Everything for Phase 8 that does not require a live deployment.
+
+**Deliverables written**
+
+- `SYSTEM_DESIGN.md` — deliverable #4, 780 words against the 800 limit, covering
+  hold TTL, concurrency, waitlist auto-assignment and offer handling.
+- `README.md` rewritten as deliverable #2: setup, env vars, the hold and
+  waitlist logic explained, the schema, the API surface, tests and deployment.
+- `npm run zip` uses `git archive`, so the archive can never contain `.env`,
+  `node_modules` or anything else untracked — deliverable #1 by construction.
+
+**Deploy config**
+
+- `render.yaml` Blueprint. Build runs `prisma migrate deploy`, so deploying
+  applies pending migrations. `MAIL_REDIRECT_TO` is deliberately absent.
+- `vercel.json` at the repo **root**, not `apps/web`. With Root Directory set to
+  `apps/web`, Vercel installs from there and cannot resolve the
+  `@ticket/shared` workspace. The rewrite matters more than it looks: without
+  it `/verify/<token>` from a scanned QR and `/offers/<token>` from an email
+  both 404, and those are the only two entry points that arrive as a cold link.
+- `.github/workflows/keepalive.yml` greps the payload for `"database":"up"`
+  rather than trusting a 200 — a paused Supabase project is exactly the failure
+  a status-only check would miss.
+
+**Verified in production mode, not just assumed**
+
+Booted with `NODE_ENV=production`: CORS returned the allowlisted origin and
+`null` for localhost, helmet headers present, `x-powered-by` removed, errors
+carried no internal detail. Production web build has `VITE_API_URL` baked in and
+zero `localhost` references.
+
+**One flaky test, hardened rather than shrugged at**
+
+A full-suite run had "a CUSTOMER cannot reach an ORGANISER route" return 404
+instead of 403 — once. It passed 3/3 in isolation and 79/79 on two further full
+runs, so it is rare and cross-file. Rather than leave a mystery 404 in the
+graded suite, the second test server now has a 418 sentinel catch-all and the
+test asserts the two servers did not collide, so any recurrence names itself
+instead of looking like a broken role check.
+
+**Next session starts with**
+
+The owner pushing. Then Render Blueprint, Vercel, `WEB_URL` and `API_URL`,
+seed production, smoke-test the full flow live, re-run the concurrency test
+against production, and zip.
 
 ---
 

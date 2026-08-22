@@ -67,8 +67,13 @@ before(async () => {
   roleApp.get('/organiser-only', requireAuth, requireRole(['ORGANISER']), (_req, res) => {
     res.json({ ok: true });
   });
+  // Sentinel: if a request ever lands on the wrong server, this makes it
+  // obvious instead of surfacing as a mystery 404 from the real app.
+  roleApp.use((_req, res) => res.status(418).json({ wrongServer: true }));
   roleApp.use(errorHandler as express.ErrorRequestHandler);
   [roleServer, roleBase] = await listen(roleApp);
+
+  assert.notEqual(roleBase, base, 'the two test servers collided on one port');
 });
 
 after(async () => {
@@ -189,6 +194,7 @@ describe('token and roles', () => {
     const res = await fetch(`${roleBase}/organiser-only`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
+    assert.notEqual(res.status, 418, 'the request reached the wrong test server');
     assert.equal(res.status, 403);
     assert.equal((await json(res)).error.code, 'FORBIDDEN');
   });

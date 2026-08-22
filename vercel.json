@@ -1,0 +1,43 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+
+  "//": "Lives at the repo root, not in apps/web. With Root Directory set to apps/web, Vercel installs from there and cannot resolve the @ticket/shared workspace — so keep Root Directory as the repo root and point the build at the workspace instead.",
+
+  "installCommand": "npm ci",
+  "buildCommand": "npm run build -w apps/web",
+  "outputDirectory": "apps/web/dist",
+  "framework": null,
+
+  "rewrites": [
+    {
+      "//": "Client-side routing. Without this, opening /verify/<token> from a scanned QR, or /offers/<token> from an email, hits Vercel's static host directly and 404s — and those are precisely the two entry points that arrive as a cold link rather than a click.",
+      "source": "/((?!assets/).*)",
+      "destination": "/index.html"
+    }
+  ],
+
+  "headers": [
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        {
+          "//": "Vite fingerprints asset filenames, so they can be cached forever. index.html is deliberately excluded and stays revalidated.",
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        {
+          "//": "A booking QR should not be embeddable in somebody else's page.",
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        }
+      ]
+    }
+  ]
+}

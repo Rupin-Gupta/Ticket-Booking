@@ -20,7 +20,9 @@
     "format:check": "prettier --check .",
     "db:migrate": "npm run db:migrate -w apps/api --",
     "db:generate": "npm run db:generate -w apps/api",
-    "db:studio": "npm run db:studio -w apps/api"
+    "db:studio": "npm run db:studio -w apps/api",
+    "zip": "git archive --format=zip --prefix=ticket-booking-system/ -o ticket-booking-system.zip HEAD",
+    "start": "npm run start -w apps/api"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",
