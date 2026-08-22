@@ -5,10 +5,10 @@ visual map, held seats auto-release when checkout is abandoned, sold-out shows
 run a FIFO waitlist that auto-assigns freed seats via time-limited offers, and
 every confirmed booking emails a QR code ticket.
 
-> **Status:** Phases 0–2 complete — auth and roles, venues with seat layouts,
-> events with per-section pricing, and shows that generate a full seat map.
-> Phase 3 (seat map, holds, concurrency) is next. Live task list in
-> [docs/TODO.md](docs/TODO.md), current state in [docs/CONTEXT.md](docs/CONTEXT.md).
+> **Status:** Phases 0–4 complete — auth, venues and events, a live seat map
+> with concurrency-safe holds, and bookings that email a QR ticket. Phase 5
+> (waitlist) is next. Live task list in [docs/TODO.md](docs/TODO.md), current
+> state in [docs/CONTEXT.md](docs/CONTEXT.md).
 
 ## Documentation map
 
@@ -64,11 +64,11 @@ only in the seed — no API route can grant either role.
 
 Three free-tier services. None expire, but see the Supabase warning below:
 
-| Service                          | Fills                        | Notes                                                                                                                  |
-| -------------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| [Supabase](https://supabase.com) | `DATABASE_URL`, `DIRECT_URL` | Dashboard → Connect. See the connection-string rules below — getting these wrong is the most common failure here.      |
-| [Upstash](https://upstash.com)   | `REDIS_URL`                  | Redis for job queues and the Socket.IO adapter. Needed from Phase 3.                                                   |
-| [Resend](https://resend.com)     | `RESEND_API_KEY`             | Needed from Phase 4. `onboarding@resend.dev` sends without a verified domain, but only to the account owner's address. |
+| Service                          | Fills                        | Notes                                                                                                                          |
+| -------------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| [Supabase](https://supabase.com) | `DATABASE_URL`, `DIRECT_URL` | Dashboard → Connect. See the connection-string rules below — getting these wrong is the most common failure here.              |
+| [Upstash](https://upstash.com)   | `REDIS_URL`                  | Redis for job queues and the Socket.IO adapter. Needed from Phase 3.                                                           |
+| [Resend](https://resend.com)     | `RESEND_API_KEY`             | `onboarding@resend.dev` sends without a verified domain, **but only to the address that owns the Resend account** — see below. |
 
 **Supabase gives you three connection strings. Take these two, and not the third:**
 
@@ -90,6 +90,13 @@ password only, never the `@` that separates credentials from the host.
 > and restoring it is manual.** `/health` runs a `SELECT 1`, so a daily ping of
 > the deployed API keeps it alive. That cron is set up in Phase 8 — before
 > submitting or demoing, confirm it is actually running.
+
+**To receive ticket emails in development**, set `MAIL_REDIRECT_TO` to your own
+address. Resend's shared sender only delivers to the account owner, so the
+seeded demo customers would otherwise never get anything. Every message goes to
+that address with the intended recipient kept in the subject line. It is ignored
+when `NODE_ENV=production` — silently redirecting a real customer's ticket would
+be worse than not sending it.
 
 Also generate a signing secret: `openssl rand -base64 48` → `JWT_SECRET`.
 

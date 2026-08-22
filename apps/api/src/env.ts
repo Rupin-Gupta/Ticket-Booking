@@ -41,6 +41,16 @@ const schema = z.object({
 
   // --- Email
   RESEND_API_KEY: blankAsUnset(z.string().optional()),
+  /**
+   * Send every message here instead of the real recipient.
+   *
+   * Resend's shared `onboarding@resend.dev` sender only delivers to the address
+   * that owns the account, so without this the seeded demo customers can never
+   * receive anything. The original recipient is kept in the subject so nothing
+   * is hidden. Refused in production — silently redirecting real customers'
+   * tickets would be far worse than not sending them.
+   */
+  MAIL_REDIRECT_TO: blankAsUnset(z.string().email().optional()),
   MAIL_FROM: z.string().default('Ticket Booking <onboarding@resend.dev>'),
 
   // --- Seat hold / waitlist tuning. The brief calls the hold TTL

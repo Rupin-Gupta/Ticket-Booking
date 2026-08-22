@@ -418,3 +418,59 @@ uncontended work.
 
 **Never move a correctness check out of the transaction for speed.** The
 `FOR UPDATE`, the status re-read and the write stay together permanently.
+
+---
+
+## ADR-020 — The seatbelt is a partial unique index, not `@unique`
+
+**Accepted** · 2026-08-22 · supersedes the `showSeatId @unique` in ADR-001's schema
+
+`BookingSeat.showSeatId` is no longer unique. Instead it carries a nullable
+`releasedAt`, and a hand-written partial index enforces the real invariant:
+
+```sql
+CREATE UNIQUE INDEX "BookingSeat_showSeatId_live_key"
+  ON "BookingSeat"("showSeatId") WHERE "releasedAt" IS NULL;
+```
+
+_The bug:_ a plain `@unique` meant a show-seat could appear in **one booking
+ever**. The row survives cancellation on purpose — revenue history and the
+cancellation email both need to know what was booked and at what price — so
+the constraint kept occupying the seat forever and a cancelled seat could never
+be sold again. Found by a test asserting a released seat goes back on sale.
+
+_Why not just delete the row:_ that throws away the price paid, which is the
+only record of what a booking was worth before an organiser re-priced the
+category.
+
+_Why not drop the constraint entirely:_ the `FOR UPDATE` transaction is the
+primary guard, but a database-level guarantee that survives an application bug
+is worth keeping. "At most one live claim per seat" is exactly that guarantee,
+stated precisely instead of approximately.
+
+_Cost:_ Prisma cannot express a partial unique index, so it is invisible to
+`schema.prisma` and a future `migrate dev` may report it as drift and try to
+drop it. Recorded in the schema file, the migration, and `docs/DEBUGGING.md`.
+`ShowSeat.bookingSeat` also became `bookingSeats BookingSeat[]` — the relation
+is one-to-many across time.
+
+---
+
+## ADR-021 — `MAIL_REDIRECT_TO` for development only
+
+**Accepted** · 2026-08-22
+
+Outside production, every email can be redirected to one address, with the
+intended recipient preserved in the subject line.
+
+_Why it exists:_ Resend's shared `onboarding@resend.dev` sender only delivers
+to the address that owns the account. Without this the seeded demo customers
+(`customer@ticket.dev` and friends) can never receive anything, so the QR
+ticket — a graded deliverable — cannot be demonstrated without either verifying
+a domain or hard-coding a personal address into the seed script.
+
+_Why it is refused in production:_ silently redirecting a real customer's
+ticket away from them is far worse than not sending it. The check is on
+`NODE_ENV`, not on the variable being absent.
+
+_Not a substitute for:_ verifying a domain before the app is genuinely public.

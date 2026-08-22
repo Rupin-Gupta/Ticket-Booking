@@ -35,9 +35,22 @@ export function startSweeper() {
       const released = await sweepExpiredHolds();
       if (released > 0) console.log(`[sweeper] released ${released} expired hold(s)`);
     } catch (err) {
-      // Never let a failed sweep kill the process. Correctness does not depend
-      // on this running; it only makes expiry visible to other viewers sooner.
-      console.error('[sweeper] failed', err);
+      // Supabase's transaction pooler recycles idle connections, so a sweep
+      // that has been quiet for a while can find its socket closed underneath
+      // it (P1017). Prisma reconnects on the next attempt, so one retry turns
+      // a skipped sweep into a completed one instead of an error log.
+      try {
+        const released = await sweepExpiredHolds();
+        if (released > 0) console.log(`[sweeper] released ${released} expired hold(s) on retry`);
+      } catch (retryErr) {
+        // Never let a failed sweep kill the process. Correctness does not
+        // depend on this running — effectiveStatus() already treats an expired
+        // lease as free — it only makes expiry visible to others sooner.
+        console.error(
+          '[sweeper] failed twice:',
+          retryErr instanceof Error ? retryErr.message.split('\n')[0] : retryErr,
+        );
+      }
     } finally {
       running = false;
     }
@@ -46,7 +59,9 @@ export function startSweeper() {
   const timer = setInterval(tick, env.SWEEPER_INTERVAL_MS);
   // Do not hold the event loop open on shutdown.
   timer.unref();
-  void tick();
+  // No eager tick: at import time nothing has connected yet, and firing here
+  // only produces a "can't reach database server" log on every boot. The first
+  // real sweep is one interval away, which is well inside any hold's TTL.
 
   console.log(`sweeper running every ${env.SWEEPER_INTERVAL_MS}ms`);
   return () => clearInterval(timer);

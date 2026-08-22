@@ -94,6 +94,42 @@ Before blaming the pooler, check whether the connection line printed: if it
 says `Datasource "db": PostgreSQL database ... at ...:5432`, the connection
 succeeded and something else is blocking.
 
+### Emails only arrive for one address
+
+**Symptom:** `validation_error — You can only send testing emails to your own
+email address`.
+**Cause:** Resend's shared `onboarding@resend.dev` sender only delivers to the
+account owner until a domain is verified.
+**Fix:** set `MAIL_REDIRECT_TO` to your own address for development (ADR-021),
+or verify a domain and change `MAIL_FROM`. Note that the booking still succeeds
+either way — the failure is confined to the queued job, which is the point.
+
+### A migration silently drops the booking seatbelt
+
+**Symptom:** after a `prisma migrate dev`, two live `BookingSeat` rows can
+point at one `showSeatId`.
+**Cause:** `BookingSeat_showSeatId_live_key` is a **partial** unique index.
+Prisma cannot represent one, so it does not appear in `schema.prisma` and
+migrate treats it as drift to be removed.
+**Fix:** re-add it in the same migration:
+
+```sql
+CREATE UNIQUE INDEX "BookingSeat_showSeatId_live_key"
+  ON "BookingSeat"("showSeatId") WHERE "releasedAt" IS NULL;
+```
+
+Check for it after any schema change: `\d "BookingSeat"` in psql, or query
+`pg_indexes`.
+
+### The sweeper logs `P1017: Server has closed the connection`
+
+**Symptom:** occasional sweeper errors, then it recovers on its own.
+**Cause:** Supabase's transaction pooler recycles idle connections, so a sweep
+after a quiet period finds its socket closed.
+**Fix:** already handled — the sweeper retries once, which is enough for Prisma
+to reconnect. It also no longer fires a tick at import time, which used to log
+"can't reach database server" on every boot before anything had connected.
+
 ### `prepared statement "s0" already exists`
 
 **Symptom:** intermittent Prisma errors under any real concurrency, only in
