@@ -69,16 +69,27 @@ is rejected, and an `alg:none` token is rejected.
 
 ## Phase 2 — Venues, events, shows
 
-- [ ] Admin: venue CRUD + bulk seat creation (rows × columns → `posX`/`posY`)
-- [ ] Organiser: event CRUD, ownership-checked
-- [ ] Seat categories per event with pricing
-- [ ] Show creation → `instantiateShowSeats()` in one transaction
-- [ ] Public: `GET /events` with filters (type, date, venue, search), `GET /events/:id`
-- [ ] Web: event list + filters, event detail, show picker
-- [ ] Web: admin venue builder, organiser event form
+- [x] Admin: venue CRUD + bulk seat creation (rows × columns → `posX`/`posY`),
+      blocks stack automatically so sections cannot overlap
+- [x] Organiser: event CRUD, ownership-checked in the service, not just the route
+- [x] Seat categories per event with pricing + `sections[]` (ADR-016)
+- [x] Show creation → `instantiateShowSeats()` in one transaction
+- [x] Public: `GET /events` with filters (type, venue, date, search) + paging,
+      `GET /events/:id`, `GET /shows/:id`
+- [x] Web: event list + filters, event detail, show picker
+- [x] Web: admin venue builder with a live layout preview, organiser event form
+- [x] Seed builds a 100-seat venue, a priced event and two shows with full maps
+- [x] 12 more tests (23 total), all green
 
 **Done when:** creating a show materialises exactly one `ShowSeat` per venue
 seat, priced by category, and re-running it is refused by the unique constraint.
+✅ **Asserted directly** — seat count matches the venue, every row is
+`AVAILABLE`, and each carries the category claiming its section.
+
+Also covered: a show is refused while any section is unpriced (and rolls back
+completely), two categories cannot claim one section, a category cannot name a
+section the venue lacks, re-adding a seat block 409s, and a second organiser
+gets 403 on someone else's event with the row left untouched.
 
 ## Phase 3 — Seat map, holds, concurrency ⭐ evaluation-critical
 

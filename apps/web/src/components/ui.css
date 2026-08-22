@@ -205,3 +205,59 @@
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow);
 }
+
+/* ------------------------------------------------------- select / textarea */
+
+.field__select {
+  /* Native arrow needs room, and the control must not look like a text input */
+  padding-right: var(--space-6);
+  appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, currentColor 50%),
+    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position:
+    calc(100% - 18px) calc(50% + 1px),
+    calc(100% - 13px) calc(50% + 1px);
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+}
+
+.field__textarea {
+  min-height: 5.5rem;
+  padding: var(--space-3) var(--space-4);
+  line-height: var(--leading-body);
+  resize: vertical;
+}
+
+/* ------------------------------------------------------------ empty / load */
+
+.empty {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-7) var(--space-4);
+  text-align: center;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+}
+.empty__title {
+  font-weight: 600;
+}
+.empty__body {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.skeletons {
+  display: grid;
+  gap: var(--space-3);
+}
+.skeleton {
+  background: var(--surface-2);
+  border-radius: var(--radius);
+  animation: pulse 1.4s var(--ease) infinite;
+}
+@keyframes pulse {
+  50% {
+    opacity: 0.55;
+  }
+}

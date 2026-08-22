@@ -30,6 +30,18 @@ export function AppShell() {
                 My bookings
               </NavLink>
             )}
+            {/* Mirrors the server's requireRole exactly — showing a link that
+                403s is worse than not showing it. */}
+            {user && (user.role === 'ORGANISER' || user.role === 'ADMIN') && (
+              <NavLink to="/manage" className="navlink">
+                Manage events
+              </NavLink>
+            )}
+            {user?.role === 'ADMIN' && (
+              <NavLink to="/admin/venues" className="navlink">
+                Venues
+              </NavLink>
+            )}
           </nav>
 
           <div className="shell__actions">

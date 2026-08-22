@@ -41,27 +41,29 @@ Times are ISO 8601 UTC. Money is a decimal string, never a float.
 `customer@ticket.dev`, `customer2@ticket.dev`. Organiser and admin exist only
 here; no API route can grant either role.
 
-## Venues (admin)
+## Venues
 
-|     | Endpoint                 | Role  | Notes                                                        |
-| --- | ------------------------ | ----- | ------------------------------------------------------------ |
-|     | `POST /venues`           | ADMIN |                                                              |
-|     | `GET /venues`            | any   |                                                              |
-|     | `GET /venues/:id`        | any   | Includes seat layout.                                        |
-|     | `PATCH /venues/:id`      | ADMIN |                                                              |
-|     | `POST /venues/:id/seats` | ADMIN | Bulk create from a rows × columns spec; fills `posX`/`posY`. |
+|     | Endpoint                   | Role   | Notes                                                                                                                                                      |
+| --- | -------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ✅  | `GET /venues`              | public | Name, address, seat count.                                                                                                                                 |
+| ✅  | `GET /venues/:id`          | public | Includes the full seat layout with `posX`/`posY`.                                                                                                          |
+| ✅  | `GET /venues/:id/sections` | public | Distinct section names — what a category may claim.                                                                                                        |
+| ✅  | `POST /venues`             | ADMIN  | `{ name, address }`.                                                                                                                                       |
+| ✅  | `PATCH /venues/:id`        | ADMIN  | Partial. An omitted field is left alone, never blanked.                                                                                                    |
+| ✅  | `POST /venues/:id/seats`   | ADMIN  | `{ section, rows, seatsPerRow }` → a grid, rows labelled A onwards, placed below existing blocks so sections stack. `409 SEATS_ALREADY_EXIST` on a repeat. |
 
 ## Events and shows
 
-|     | Endpoint                      | Role      | Notes                                                                      |
-| --- | ----------------------------- | --------- | -------------------------------------------------------------------------- |
-|     | `GET /events`                 | public    | Filters: `type`, `venueId`, `from`, `to`, `q`. Paginated.                  |
-|     | `GET /events/:id`             | public    | Includes categories, prices, upcoming shows.                               |
-|     | `POST /events`                | ORGANISER | Organiser becomes the owner.                                               |
-|     | `PATCH /events/:id`           | ORGANISER | Ownership-checked, not just role-checked.                                  |
-|     | `POST /events/:id/categories` | ORGANISER | `{ name, price }`, unique per event.                                       |
-|     | `POST /events/:id/shows`      | ORGANISER | Creates the show **and** instantiates every `ShowSeat` in one transaction. |
-|     | `GET /shows/:id`              | public    |                                                                            |
+|     | Endpoint                      | Role      | Notes                                                                                                                                                           |
+| --- | ----------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ✅  | `GET /events`                 | public    | Filters `type`, `venueId`, `from`, `to`, `q` (case-insensitive title). `limit` ≤ 50, `offset`. Returns `{ events, total, limit, offset }`. Only upcoming shows. |
+| ✅  | `GET /events/:id`             | public    | Categories with their `sections`, plus upcoming shows and each one's seat count.                                                                                |
+| ✅  | `GET /events/mine`            | ORGANISER | The caller's own events. ADMIN sees all.                                                                                                                        |
+| ✅  | `POST /events`                | ORGANISER | `{ venueId, title, type, description? }`. Caller becomes the owner.                                                                                             |
+| ✅  | `PATCH /events/:id`           | ORGANISER | Ownership-checked in the service. `venueId` cannot change — it would orphan every `ShowSeat` already generated.                                                 |
+| ✅  | `POST /events/:id/categories` | ORGANISER | `{ name, price, sections[] }`. `400 UNKNOWN_SECTION` if the venue lacks one; `409 SECTION_ALREADY_PRICED` if another category claims it.                        |
+| ✅  | `POST /events/:id/shows`      | ORGANISER | `{ startsAt }`, must be future. Creates the show **and** every `ShowSeat` in one transaction; returns `seatCount`. `400 SECTION_NOT_PRICED` rolls it all back.  |
+| ✅  | `GET /shows/:id`              | public    | Show, its event, venue, pricing, and seat count.                                                                                                                |
 
 ## Seat map and holds ⭐
 

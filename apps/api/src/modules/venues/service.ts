@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../lib/prisma.js';
 import { ApiError } from '../../lib/errors.js';
+import { compact } from '../../lib/http.js';
 import type { AddSeatBlockInput, CreateVenueInput, UpdateVenueInput } from './schema.js';
 
 export const listVenues = () =>
@@ -33,7 +34,7 @@ export async function updateVenue(id: string, input: UpdateVenueInput) {
   await getVenue(id); // 404 before 500
   return prisma.venue.update({
     where: { id },
-    data: input,
+    data: compact(input),
     select: { id: true, name: true, address: true },
   });
 }

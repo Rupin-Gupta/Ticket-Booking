@@ -170,6 +170,7 @@ model SeatCategory {
   eventId String
   name    String  // "Premium", "Standard"
   price   Decimal
+  sections String[] // venue sections this band covers — see ADR-016
 
   showSeats       ShowSeat[]
   waitlistEntries WaitlistEntry[]
@@ -346,6 +347,6 @@ the index.
 
 ## Current phase
 
-`Phase 2 — Venues, events & shows, not started. Phases 0 and 1 complete: auth,
-roles, design system and seed all working and tested. Full detail in
-docs/CONTEXT.md.`
+`Phase 3 — Seat map, holds & concurrency (evaluation-critical), not started.
+Phases 0-2 complete: auth, venues, events, pricing, shows with generated seat
+maps. 23 tests green. Needs REDIS_URL from Upstash. Detail in docs/CONTEXT.md.`
