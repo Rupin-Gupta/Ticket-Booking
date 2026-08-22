@@ -5,11 +5,15 @@ live map, held seats auto-release when checkout is abandoned, sold-out shows run
 a FIFO waitlist that offers freed seats to the next person automatically, and
 every confirmed booking emails a QR code ticket.
 
-**Live app:** _added after deployment_ · **API:** _added after deployment_
+**Live app:** https://ticket-booking-zeta-azure.vercel.app · **API:** https://ticket-booking-api-sisp.onrender.com/health
 
 ```
 79 tests passing · TypeScript strict across three workspaces
+20 parallel holds on one seat, against the live deployment: 1 x 201, 19 x 409, 0 errors
 ```
+
+> First load may take ~50s — Render's free tier spins down when idle. A daily
+> keep-alive keeps it warm; give it a moment if it has been quiet.
 
 ---
 

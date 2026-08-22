@@ -223,14 +223,19 @@ Everything that does not require a live deployment is done.
 - [x] Production-mode boot verified locally: CORS rejects a foreign origin,
       helmet headers present, `x-powered-by` removed, errors do not leak detail
 - [x] Production web build verified: `VITE_API_URL` baked in, zero `localhost` refs
-- [ ] **Push to GitHub** ← owner action; Render deploys from the repo
-- [ ] API → Render, Web → Vercel
-- [ ] Set `WEB_URL` on Render to the Vercel URL (it is the CORS allowlist)
-- [ ] Set the `API_URL` repository variable, run the keep-alive once manually
-- [ ] Seed demo data against production
-- [ ] Smoke-test live: browse → hold → book → email → cancel → offer
-- [ ] Re-run the concurrency test against production
-- [ ] `npm run zip`
+- [x] Pushed to GitHub
+- [x] API → Render (https://ticket-booking-api-sisp.onrender.com)
+- [x] Web → Vercel (https://ticket-booking-zeta-azure.vercel.app)
+- [x] `WEB_URL` set — CORS allows Vercel, rejects a foreign origin, preflight 204
+- [x] `API_URL` repository variable set, keep-alive workflow run
+- [x] Production seeded
+- [x] Smoke-tested live: login → seat map → race → book → QR verify → cancel
+- [x] **Concurrency test re-run against production: 1 x 201, 19 x 409, 0 errors in 1.2s**
+- [x] Sweeper proven running on Render — freed an expired hold in ~5s
+- [x] Email worker proven running — delivered BK-4PTAX with a scannable QR
+- [x] `npm run zip` — 163 files, no `node_modules`, no `.env`
+
+**All four deliverables complete.**
 
 **Done when:** all four deliverables exist and the hosted URL works from a
 device that never ran the project.

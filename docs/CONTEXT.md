@@ -16,7 +16,7 @@ an entry here costs the next one twenty minutes of rediscovery.
 | **Runnable?**   | Yes — the entire brief works, live. Two browsers on one show now update each other without refreshing.              |
 | **Repo**        | Local git initialised. Remote `https://github.com/Rupin-Gupta/Ticket-Booking.git` — **not pushed yet, user pushes** |
 | **Blocked on**  | Nothing. All three accounts are configured and working.                                                             |
-| **Next action** | Owner pushes. Then: Render Blueprint, Vercel, set `WEB_URL` + `API_URL`, seed, smoke-test, zip.                     |
+| **Next action** | Optional Phase 9 hardening, or new differentiating features. Known gap: tests share the production database.        |
 
 Demo logins (`npm run db:seed -w apps/api`), all `password123`:
 `admin@ticket.dev`, `organiser@ticket.dev`, `customer@ticket.dev`,
