@@ -19,7 +19,7 @@ lock a seat permanently.
 **The sweeper is the visibility mechanism.** A ten-second interval flips expired
 rows and broadcasts the change, so other people's screens stop showing a seat as
 grey. It is a plain `setInterval` running two indexed `UPDATE`s, not a queued
-job: an idle BullMQ worker's blocking poll costs roughly 518,000 Redis commands
+job: an idle ARQ worker's blocking poll costs roughly 518,000 Redis commands
 a month against Upstash's 500,000 free-tier allowance, so a queue here would
 exhaust the tier in about three days — silently. Redis is kept for the email
 queue and the Socket.IO adapter, where it earns its place.
@@ -48,7 +48,7 @@ a deadlock by killing a transaction, turning a clean conflict into a 500.
 `FOR UPDATE OF ss` locks only `ShowSeat`, not the joined `Seat`, which would
 serialise unrelated shows in the same venue. And the query both locks and reads,
 so the lock is held for two round trips rather than four; with four, twenty
-contenders exceeded Prisma's transaction timeout and seven of twenty returned
+contenders exceeded SQLAlchemy's transaction timeout and seven of twenty returned
 500 instead of 409. Holds are all-or-nothing: a partial hold is worse UX than a
 clean rejection and leaks seats when the cart is abandoned.
 

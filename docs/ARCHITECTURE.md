@@ -1,7 +1,13 @@
+> **Ported to Python on 2026-08-23.** The reasoning in this document is
+> unchanged — the locking discipline, the lazy expiry, the waitlist ordering and
+> the layering all survived the port intact, which is the point. Code samples and
+> tool names have been updated; anything that still reads as Node is a doc bug,
+> not a design that moved.
+
 # Architecture
 
 How the system is put together and why. `CLAUDE.md` holds the condensed rules
-and the authoritative Prisma schema; this file holds the reasoning and the
+and the authoritative schema; this file holds the reasoning and the
 mechanisms. When the two disagree, `CLAUDE.md` wins and this file gets fixed.
 
 ---
@@ -16,11 +22,11 @@ mechanisms. When the two disagree, `CLAUDE.md` wins and this file gets fixed.
                 REST/JWT  │               │  Socket.IO
                           ▼               │  seat:sync / seat:update
                   ┌──────────────────────────────┐
-                  │  apps/api  Express + TS      │
+                  │  apps/api  FastAPI + Python  │
                   │  modules/ jobs/ realtime/    │
                   └───┬──────────┬──────────┬────┘
                       │          │          │
-          Prisma tx   │          │ BullMQ   │ nodemailer
+          SQLAlchemy  │          │ ARQ      │ Resend
                       ▼          ▼          ▼
               ┌────────────┐ ┌────────┐ ┌──────────┐
               │ PostgreSQL │ │ Redis  │ │ Resend   │
@@ -42,7 +48,7 @@ cannot.
 `apps/api/src/modules/{auth,venues,events,shows,holds,bookings,waitlist,organiser}`
 
 Each module is `routes.ts` + `service.ts` + `schema.ts` (Zod). Routes parse and
-authorise; services own the transactions; nothing else touches Prisma directly.
+authorise; services own the transactions; nothing else touches the session directly.
 Cross-module logic that both bookings and the sweeper need — `advanceWaitlist()`
 — lives in the waitlist service and is imported, never duplicated.
 
@@ -102,7 +108,7 @@ has to guess which kind of expiry it is looking at.
 POST /api/v1/shows/:showId/holds   { seatIds: string[] }
 ```
 
-Inside one `prisma.$transaction`:
+Inside one `db.transaction()`:
 
 1. `SELECT id FROM "ShowSeat" WHERE id = ANY($1) ORDER BY id FOR UPDATE`
    — row locks, taken in a deterministic order.
@@ -127,7 +133,7 @@ Two mechanisms, different jobs:
 - **Lazy expiry is the correctness guarantee.** Every transaction that reads a
   seat treats `expiry < now()` as free. Even if every background job is dead,
   no seat is ever permanently locked by an abandoned checkout.
-- **The sweeper is the UX guarantee.** A BullMQ repeatable job every ~10s flips
+- **The sweeper is the UX guarantee.** An interval loop every ~10s flips
   expired `HELD` rows back to `AVAILABLE` and expired `OFFERED` rows through
   `advanceWaitlist()`, then broadcasts. Without it a seat _is_ free but still
   renders grey on everyone else's screen until someone happens to touch it.
@@ -148,10 +154,10 @@ The bug this project is graded on avoiding:
 
 ```ts
 // WRONG — time-of-check-to-time-of-use race
-const seat = await prisma.showSeat.findUnique({ where: { id } });
+seat = await session.get(ShowSeat, seat_id)
 if (seat.status === 'AVAILABLE') {
   // ← another request interleaves here
-  await prisma.showSeat.update({ where: { id }, data: { status: 'HELD' } });
+    await session.execute(update(ShowSeat).where(...).values(status="HELD"))
 }
 ```
 
@@ -161,7 +167,7 @@ Two customers, one seat, no error anywhere.
 The fix is a row-level write lock held for the whole check-then-write:
 
 ```ts
-await prisma.$transaction(async (tx) => {
+async with transaction() as session:
   const locked = await tx.$queryRaw<{ id: string }[]>`
     SELECT id FROM "ShowSeat"
     WHERE id = ANY(${seatIds}) AND "showId" = ${showId}
@@ -190,7 +196,7 @@ The second contender blocks at `FOR UPDATE` until the first commits, then reads
 `HELD` and gets a clean `409`. One winner, deterministically.
 
 Tagged-template `$queryRaw` parameterises `${seatIds}` — it is not string
-interpolation. `$queryRawUnsafe` and `Prisma.raw()` are, and are banned anywhere
+interpolation. String-formatted SQL is not, and is banned anywhere
 near request data.
 
 ### Defence in depth
@@ -289,7 +295,7 @@ bytes and is what the QR actually encodes, as a `{WEB_URL}/verify/{qrToken}`
 URL — a QR holding raw booking JSON is forgeable by anyone with a QR generator,
 and a QR holding the sequential reference is guessable.
 
-Email is **queued, never inline**. The booking commits and responds; a BullMQ
+Email is **queued, never inline**. The booking commits and responds; an ARQ
 worker renders the QR (`qrcode` → data URL) and sends via Nodemailer/Resend with
 retry and backoff. An SMTP hiccup must never fail a booking the customer already
 paid for and the database already recorded.
@@ -353,10 +359,10 @@ mixing them up is the classic "works locally, breaks on deploy" failure:
   Used by the running app. Transaction mode holds a connection for the lifetime
   of a transaction, so `BEGIN … FOR UPDATE … COMMIT` locks a seat exactly as it
   would on a direct connection. `pgbouncer=true` is mandatory: it turns off
-  prepared statements, which the pooler cannot support and Prisma uses by
+  prepared statements, which the pooler cannot support and asyncpg emits by
   default.
 - `DIRECT_URL` — **session** pooler, port `5432`, same host. Used by
-  `prisma migrate` only. Migrations take advisory locks, which are session
+  `alembic upgrade` only. Migrations take advisory locks, which are session
   state, and transaction mode discards session state between statements.
 - `db.<ref>.supabase.co` — **never used.** It is IPv6-only without the paid
   IPv4 add-on, so it connects from a laptop and fails from Render.

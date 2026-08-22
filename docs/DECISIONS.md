@@ -588,3 +588,106 @@ _Aggregated in JS, not SQL:_ Prisma cannot group by a relation's column, and an
 event has hundreds of seats rather than millions. The ceiling is named in the
 code; a raw `GROUP BY` is the upgrade if a venue ever gets large enough to
 notice.
+
+---
+
+## ADR-027 — psycopg3, never asyncpg
+
+**Accepted** · 2026-08-23
+
+The database driver is `psycopg3` with `prepare_threshold=None`.
+
+_Why not asyncpg:_ it is the obvious default for async Python, and it is wrong
+on this infrastructure. Supabase's transaction pooler is pgbouncer, which cannot
+carry a prepared statement across pooled connections — the statement is prepared
+on one backend and executed on another that has never heard of it.
+[supabase/supabase#39227](https://github.com/supabase/supabase/issues/39227) is
+open and documents asyncpg leaking prepared statements through that pooler
+**even with `statement_cache_size=0` set**, starting at roughly 100 concurrent
+requests. That is precisely the shape of this project's graded test.
+
+_How it was decided:_ spiked before a line of application code existed. A
+throwaway script raced 20, then 100, then 250 concurrent contenders for a single
+seat row through the real pooler. Every run: one winner, zero errors. asyncpg was
+not adopted on the strength of that evidence rather than on preference.
+
+_Honest cost:_ the issue reporter's own aside — "it doesn't happen with apps I
+build using drizzle and typescript" — is true. The Python port introduces a class
+of pooler risk the Node stack did not have. psycopg3 avoids it; the risk is
+documented rather than hidden.
+
+_Also required:_ `?pgbouncer=true` must be stripped from the connection string.
+It was a Prisma-only flag, and psycopg forwards unknown query parameters to the
+server, which rejects them. `to_sqlalchemy_url()` removes it, so an existing
+`.env` keeps working.
+
+---
+
+## ADR-028 — The database schema was not renamed during the port
+
+**Accepted** · 2026-08-23
+
+Tables stay quoted PascalCase (`"ShowSeat"`), columns stay camelCase
+(`"holdExpiresAt"`), enums stay native Postgres types. SQLAlchemy models map onto
+them with an explicit name per attribute.
+
+_Alternative:_ rename everything to snake_case, which is idiomatic Python and
+would have removed ~40 explicit `mapped_column(...)` names.
+
+_Why not:_ the port's entire value was provable equivalence — the existing tests
+were the specification, and a failure had to mean "port bug" and nothing else. A
+simultaneous schema rename makes every failure ambiguous. It would also have
+invalidated the hand-written partial unique index and the three existing Prisma
+migrations, and the API still has to emit camelCase JSON regardless, because the
+React app is not part of the port.
+
+_Consequence:_ one explicit column name per attribute. Mechanical, paid once,
+and it made the diff reviewable.
+
+---
+
+## ADR-029 — ARQ replaces BullMQ; the sweeper still does not use either
+
+**Accepted** · 2026-08-23
+
+BullMQ is Node-only. The email queue is now ARQ: same shape — Redis-backed,
+retries with exponential backoff, a separate worker process — different library.
+
+_Why ARQ over Celery:_ Celery is sync-first and chattier with Redis, and Upstash
+bills per command against a 500,000/month free allowance. ARQ is async-native,
+which matches FastAPI, and small enough to read in one sitting.
+
+_What did **not** change:_ the sweeper still runs as an interval loop against
+Postgres, not as a queued job — ADR-018's arithmetic is unchanged by the language.
+An idle Redis-polling worker costs ~518,000 commands a month on its own.
+
+_Also unchanged:_ both job processors re-read their subject rather than trusting
+a payload serialised minutes ago. By the time a retry runs, the booking may be
+cancelled or the offer already passed on, and emailing a dead link is worse than
+emailing nothing.
+
+---
+
+## ADR-030 — Tests run against a container, and refuse to run against production
+
+**Accepted** · 2026-08-23
+
+`config.active_database_url()` requires `DATABASE_URL_TEST` under
+`NODE_ENV=test` and **will not fall back** to `DATABASE_URL`. `docker-compose.yml`
+provides that database on port 5433, with its data on tmpfs.
+
+_Why it exists:_ before the port, `npm test` wrote into the database serving the
+live site. That was a standing hazard on the backlog for weeks. Building config
+from scratch made it free to fix properly rather than retrofit.
+
+_Why a container rather than a second Supabase project:_ no network latency, no
+free-tier quota, and `docker compose down -v` guarantees a clean slate. The
+suite went from ~9s of network round trips to ~9s total for 120 tests.
+
+_Extended to Redis:_ `enqueue_email()` returns early under test for the same
+reason. `REDIS_URL` points at the live Upstash instance, and a suite that
+enqueues thousands of jobs there is the same mistake in a different system. It
+also made the booking tests eight times slower.
+
+_Consequence:_ a fresh clone must start the container before `npm test`. The
+error names the fix rather than failing obscurely.
