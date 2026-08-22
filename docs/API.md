@@ -30,11 +30,16 @@ Times are ISO 8601 UTC. Money is a decimal string, never a float.
 
 ## Auth
 
-|     | Endpoint              | Role   | Notes                                                                                        |
-| --- | --------------------- | ------ | -------------------------------------------------------------------------------------------- |
-|     | `POST /auth/register` | public | Role hard-coded `CUSTOMER` server-side. A client-supplied `role` is ignored, never honoured. |
-|     | `POST /auth/login`    | public | Returns `accessToken` (HS256, 15 min) + user. Rate limited.                                  |
-|     | `GET /auth/me`        | any    | Current user from the token.                                                                 |
+|     | Endpoint              | Role   | Notes                                                                                                                                                                                                                                          |
+| --- | --------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ✅  | `POST /auth/register` | public | `{ email, password, name }` → `201 { user, accessToken }`. Role hard-coded `CUSTOMER`; the Zod schema has no `role` field at all, so a supplied one is stripped before the service sees it. `409 EMAIL_TAKEN` on duplicate. Max 5/hour per IP. |
+| ✅  | `POST /auth/login`    | public | `{ email, password }` → `200 { user, accessToken }` (HS256, 15 min). `401` with an identical code and message for both a wrong password and an unknown email. Max 10 per 15 min per IP.                                                        |
+| ✅  | `GET /auth/me`        | any    | `200 { user }`. `401` if the token is missing, expired, forged, or its account has since been deleted.                                                                                                                                         |
+
+**Demo accounts** — created by `npm run db:seed -w apps/api`, all with password
+`password123`: `admin@ticket.dev`, `organiser@ticket.dev`,
+`customer@ticket.dev`, `customer2@ticket.dev`. Organiser and admin exist only
+here; no API route can grant either role.
 
 ## Venues (admin)
 

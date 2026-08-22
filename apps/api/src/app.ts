@@ -4,6 +4,8 @@ import helmet from 'helmet';
 import { allowedOrigins, configured, env } from './env.js';
 import { requestLogger } from './middleware/logger.js';
 import { errorHandler, notFound } from './middleware/error.js';
+import { authRoutes } from './modules/auth/routes.js';
+import { prisma } from './lib/prisma.js';
 
 /**
  * Round-trips one query to Postgres. Two jobs:
@@ -11,17 +13,14 @@ import { errorHandler, notFound } from './middleware/error.js';
  *      than only whether it is present
  *   2. gives the daily keep-alive something to hit — Supabase pauses a free
  *      project after 7 days with no database activity, and unpausing is manual.
- *      A dashboard visit does not count; a query does.
+ *      A dashboard visit does not count; a query does. This is the endpoint
+ *      the Phase 8 cron targets.
  *
  * Reports rather than throws: an unreachable database is information, not a
  * reason for the health endpoint itself to fail.
  */
-async function databaseStatus(): Promise<'up' | 'unreachable' | 'not-configured'> {
-  if (!configured.database) return 'not-configured';
+async function databaseStatus(): Promise<'up' | 'unreachable'> {
   try {
-    // Imported here, not at module load: constructing PrismaClient reads
-    // DATABASE_URL, and the API must still boot without one.
-    const { prisma } = await import('./lib/prisma.js');
     await prisma.$queryRaw`SELECT 1`;
     return 'up';
   } catch (err) {
@@ -52,8 +51,9 @@ export function createApp() {
   });
 
   const api = express.Router();
-  // Phase 1+ mounts modules here: auth, venues, events, shows, holds,
-  // bookings, waitlist, organiser.
+  api.use('/auth', authRoutes);
+  // Phase 2+ mounts the rest here: venues, events, shows, holds, bookings,
+  // waitlist, organiser.
   app.use('/api/v1', api);
 
   app.use(notFound);
