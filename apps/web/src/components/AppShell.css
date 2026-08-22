@@ -1,0 +1,135 @@
+.shell__header {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.shell__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  max-width: var(--container);
+  margin: 0 auto;
+  padding: var(--space-3) var(--space-4);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text);
+  text-decoration: none;
+  flex-shrink: 0;
+}
+.brand__word {
+  font-family: var(--font-brand);
+  font-size: var(--text-xl);
+  letter-spacing: 0.01em;
+}
+.brand svg {
+  color: var(--cta);
+}
+
+.shell__nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  /* Nav takes the slack so the actions stay pinned right */
+  margin-right: auto;
+}
+
+.navlink {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  text-decoration: none;
+  transition:
+    background-color var(--duration) var(--ease),
+    color var(--duration) var(--ease);
+}
+.navlink:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+/* Weight and colour together, so the current page is not signalled by hue alone */
+.navlink.active {
+  color: var(--text);
+  font-weight: 600;
+  background: var(--surface-2);
+}
+
+.shell__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.icon-btn {
+  width: var(--tap);
+  min-width: var(--tap);
+  padding: 0;
+}
+
+.whoami {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  max-width: 22ch;
+}
+.whoami__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pill {
+  padding: 2px var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  text-transform: capitalize;
+}
+
+.shell__main {
+  max-width: var(--container);
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-4) var(--space-8);
+}
+
+.route-pending {
+  display: grid;
+  place-items: center;
+  min-height: 50vh;
+  color: var(--text-muted);
+}
+
+/* Below 640px the nav labels and the name would fight for the same row */
+@media (max-width: 640px) {
+  .shell__bar {
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  .shell__nav {
+    order: 3;
+    width: 100%;
+    margin-right: 0;
+    overflow-x: auto;
+  }
+  .whoami {
+    max-width: 12ch;
+  }
+  .whoami .pill {
+    display: none;
+  }
+}

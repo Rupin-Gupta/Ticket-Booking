@@ -17,6 +17,8 @@ export class ApiClientError extends Error {
 
 let accessToken: string | null = localStorage.getItem('accessToken');
 
+export const getAccessToken = () => accessToken;
+
 export function setAccessToken(token: string | null) {
   accessToken = token;
   if (token) localStorage.setItem('accessToken', token);

@@ -346,6 +346,6 @@ the index.
 
 ## Current phase
 
-`Phase 1 — Auth & roles, not started. Phase 0 complete: monorepo runs, Supabase
-connected, migration 20260822094817_init applied. Full detail in
+`Phase 2 — Venues, events & shows, not started. Phases 0 and 1 complete: auth,
+roles, design system and seed all working and tested. Full detail in
 docs/CONTEXT.md.`

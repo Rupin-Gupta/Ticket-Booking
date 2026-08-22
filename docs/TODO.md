@@ -45,18 +45,27 @@ which is what proves `?pgbouncer=true` is working.
 
 ## Phase 1 — Auth and roles
 
-- [ ] Argon2id hash/verify helpers
-- [ ] `POST /auth/register` — role hard-coded `CUSTOMER`
-- [ ] `POST /auth/login` — JWT, `HS256` pinned, 15 min expiry
-- [ ] `GET /auth/me`
-- [ ] `requireAuth` + `requireRole([...])` middleware
-- [ ] Zod validation on every body, central error handler → consistent error shape
-- [ ] Rate limit on `/auth/login`
-- [ ] Seed script: one admin, one organiser, two customers
-- [ ] Web: register / login / logout, token storage, protected routes
+- [x] Argon2id hash/verify helpers, with a decoy hash so an unknown email costs
+      the same time as a real one
+- [x] `POST /auth/register` — role hard-coded `CUSTOMER`, not even parsed
+- [x] `POST /auth/login` — JWT, `HS256` pinned on sign **and** verify, 15 min
+- [x] `GET /auth/me`
+- [x] `requireAuth` + `requireRole([...])` middleware
+- [x] Zod validation on every body, central error handler → consistent error shape
+- [x] Rate limit on `/auth/login` (10 / 15 min) and `/auth/register` (5 / hour)
+- [x] Seed script: one admin, one organiser, two customers
+- [x] Design system: tokens (light + dark), type scale, Button / Field / Alert /
+      Card primitives, SVG icon set, app shell, theme toggle
+- [x] Web: register / login / logout, token storage, `RequireAuth` guard
+- [x] 10 auth tests on `node:test`, all green
 
 **Done when:** a customer cannot reach an organiser route, and a register
-request carrying `"role":"ADMIN"` still produces a `CUSTOMER`.
+request carrying `"role":"ADMIN"` still produces a `CUSTOMER`. ✅ **Both
+asserted, the second against the database row rather than the response.**
+
+Also covered by test: duplicate email → 409, short password → 400, wrong
+password and unknown email return byte-identical errors, a wrong-secret token
+is rejected, and an `alg:none` token is rejected.
 
 ## Phase 2 — Venues, events, shows
 

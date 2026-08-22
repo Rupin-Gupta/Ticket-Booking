@@ -1,0 +1,105 @@
+.auth {
+  display: grid;
+  gap: var(--space-5);
+  max-width: 26rem;
+  margin: var(--space-6) auto 0;
+}
+
+.auth__card {
+  padding: var(--space-6);
+}
+
+.auth__head {
+  display: grid;
+  gap: var(--space-2);
+  margin-bottom: var(--space-5);
+}
+
+.auth__title {
+  font-family: var(--font-brand);
+  font-size: var(--text-2xl);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+}
+
+.auth__sub {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.auth__form {
+  display: grid;
+  /* One gap value for the whole stack — no per-field margins to collapse */
+  gap: var(--space-4);
+}
+
+.auth__alt {
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* ------------------------------------------------------------ demo logins */
+
+.demo {
+  padding: var(--space-4);
+  background: var(--surface-2);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+}
+
+.demo__title {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  margin-bottom: var(--space-1);
+}
+
+.demo__note {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  margin-bottom: var(--space-3);
+}
+
+.demo__list {
+  display: grid;
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.demo__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: var(--tap);
+  padding: 0 var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  text-align: left;
+  transition:
+    border-color var(--duration) var(--ease),
+    background-color var(--duration) var(--ease);
+}
+.demo__item:hover {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+}
+
+.demo__role {
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.demo__email {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

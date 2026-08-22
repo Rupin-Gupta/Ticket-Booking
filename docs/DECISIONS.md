@@ -261,3 +261,47 @@ migrations, whose advisory locks are session state, need the session pooler.
 
 _Still true from ADR-008:_ Render's free Postgres expires after 30 days and is
 not an option for this project.
+
+---
+
+## ADR-014 — Plain CSS custom properties, no Tailwind and no component library
+
+**Accepted** · 2026-08-22
+
+`apps/web/src/styles/tokens.css` holds every colour, size, duration and
+z-index. Components are hand-written with a small stylesheet each. No Tailwind,
+no shadcn, no MUI.
+
+_Alternative:_ Tailwind, which the design-system tooling assumes by default.
+
+_Why not:_ tokens in CSS custom properties give the one thing this project
+actually needs — a seat that is `--seat-held` in both themes without a class
+being recomputed — with zero build configuration and zero dependencies. Tailwind
+would add a config file, a build step and a purge story to solve a problem four
+components do not have.
+
+_What it buys specifically:_ the seat map in Phase 3 renders hundreds of cells
+whose colour is driven by data. A CSS variable per status is the natural fit;
+mapping four statuses onto utility class strings is not.
+
+_Add a library when:_ a date picker, a combobox or a modal is needed. Those are
+genuinely hard to get right for accessibility, and hand-rolling them would be
+the wrong kind of lazy.
+
+---
+
+## ADR-015 — Seat-status colours chosen in Phase 1, not Phase 3
+
+**Accepted** · 2026-08-22
+
+`--seat-free`, `--seat-held`, `--seat-offered` and `--seat-booked` are defined
+in `tokens.css` now, with light and dark values, even though nothing renders a
+seat until Phase 3.
+
+_Why:_ they are the palette the product is recognised by, and they have to hold
+contrast against the surfaces and the brand blue as one set. Picked later, in
+isolation, they would either clash or force the rest of the palette to move.
+
+_Constraint they must keep:_ status is never signalled by colour alone. Every
+seat also carries a text label and a distinct shape state, because roughly one
+man in twelve cannot reliably separate the teal from the amber.

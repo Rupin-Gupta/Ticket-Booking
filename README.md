@@ -5,8 +5,8 @@ visual map, held seats auto-release when checkout is abandoned, sold-out shows
 run a FIFO waitlist that auto-assigns freed seats via time-limited offers, and
 every confirmed booking emails a QR code ticket.
 
-> **Status:** Phase 0 complete — monorepo runs, Supabase connected, schema
-> migrated. Phase 1 (auth) is next. Live task list in
+> **Status:** Phases 0–1 complete — auth, roles, design system, seeded demo
+> accounts. Phase 2 (events and shows) is next. Live task list in
 > [docs/TODO.md](docs/TODO.md), current state in
 > [docs/CONTEXT.md](docs/CONTEXT.md).
 
@@ -41,9 +41,24 @@ cp apps/api/.env.example apps/api/.env   # see "Accounts" below before filling i
 npm run dev                              # API on :4000, web on :5173
 ```
 
-Open http://localhost:5173 — the page reports which services are wired and
-which are still missing. The API runs without a database, so this works before
-any account exists.
+Then seed the demo accounts and open http://localhost:5173:
+
+```bash
+npm run db:seed -w apps/api
+```
+
+| Account                | Role      | Password      |
+| ---------------------- | --------- | ------------- |
+| `customer@ticket.dev`  | Customer  | `password123` |
+| `organiser@ticket.dev` | Organiser | `password123` |
+| `admin@ticket.dev`     | Admin     | `password123` |
+
+The login screen lists these as one-click buttons. Organiser and admin exist
+only in the seed — no API route can grant either role.
+
+> A database connection is required from Phase 1 on. Without `DATABASE_URL` the
+> API refuses to start and says so, rather than starting and failing every
+> request.
 
 ### Accounts
 
