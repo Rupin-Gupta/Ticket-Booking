@@ -3,12 +3,15 @@
 **Date:** 2026-08-22
 **Status:** approved, ready for implementation planning
 
-Two features on top of the completed brief:
+Three features on top of the completed brief:
 
 - **A — Hesitation Index.** Seat quality inferred from abandoned holds. Genuinely
   unshipped elsewhere, because no platform keeps hold telemetry.
 - **B — Accessible seating.** Wheelchair spaces and companion seats that book
   atomically. Not unique, but demonstrably underserved.
+- **C — Seat map hierarchy.** Row labels, named section bands, and a visual tier
+  so a premium seat reads as premium. Fixes a real gap: the map is currently
+  flat, and a ₹450 seat is indistinguishable from a ₹250 one until you hover.
 
 Background and prior-art research: [docs/FEATURE_BACKLOG.md](../../FEATURE_BACKLOG.md).
 
@@ -89,10 +92,12 @@ Three guards against telling people things the data does not support:
 
 1. **Minimum sample.** Fewer than 5 outcomes → no signal at all. One
    abandonment is not "100% rejected".
-2. **Relative, never absolute.** Compared against the mean for that seat's
-   **row**, and surfaced only above ~1.5×. A popular show produces more
-   abandonments everywhere; a rate normalises for that, and a row comparison
-   normalises for the section being unpopular generally.
+2. **Relative, never absolute, and the row is named.** Compared against the mean
+   for that seat's **row**, surfaced only above ~1.5×, and the copy states which
+   row: _"passed over 3× more often than other seats in row F"_. A bare
+   multiplier invites the reader to invent their own baseline. A popular show
+   produces more abandonments everywhere; a rate normalises for that, and a row
+   comparison normalises for the section being unpopular generally.
 3. **Never state a cause.** "Passed over more often than others in row F" is
    what the data supports. "Obstructed view" is a guess dressed as a fact.
 
@@ -121,11 +126,11 @@ takes deliberately.
 
 ### API
 
-| Endpoint                            | Change                                                                                                                          |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /shows/:id/seats`              | `SeatView` gains `hesitation: { ratio, rowMultiple, sample } \| null` — null unless published **and** past the sample threshold |
-| `GET /organiser/events/:id/summary` | Gains `seatSignals[]`: the worst seats by hesitation and cancellation                                                           |
-| `PATCH /events/:id`                 | Accepts `publishSeatSignals`                                                                                                    |
+| Endpoint                            | Change                                                                                                                                                                |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /shows/:id/seats`              | `SeatView` gains `hesitation: { ratio, rowMultiple, sample } \| null` — null unless published **and** past the sample threshold; also `tier: number` and `accessType` |
+| `GET /organiser/events/:id/summary` | Gains `seatSignals[]`: the worst seats by hesitation and cancellation                                                                                                 |
+| `PATCH /events/:id`                 | Accepts `publishSeatSignals`                                                                                                                                          |
 
 ### Tests
 
@@ -205,6 +210,108 @@ pair-aware offers are a later change, recorded rather than hidden.
 
 ---
 
+## Feature C — Seat map hierarchy
+
+### The gap
+
+Today every seat renders identically. Status is encoded (available, held,
+booked), but **category is not** — the only way to learn a seat's price or
+section is to hover it. There are no row labels, so "row F seat 12" cannot be
+found by looking. A real box-office map has neither problem.
+
+### Row labels
+
+A gutter down **both** sides of the grid carrying the row letter, taken from
+`Seat.row`, which is already stored and already returned in `SeatView`.
+
+Both sides, not one: on a wide grid a single-sided label means tracing across
+twenty seats to find your row. Rendered `aria-hidden` — every seat button
+already carries `"row F seat 12"` in its accessible name, so repeating the
+letter would just add noise for a screen reader.
+
+### Section bands
+
+Seats group into labelled bands by section, each with a header showing the
+section name, its category, and the price:
+
+```
+────────────  PREMIUM · ₹450  ────────────
+   [seats]
+────────────  STANDARD · ₹250  ───────────
+   [seats]
+```
+
+Sections already exist in the data (`Seat.section`), and a category already
+declares which sections it covers via `SeatCategory.sections[]` (ADR-016). This
+is surfacing a relationship the schema already models.
+
+### Tiering — by price rank, never by name
+
+**Decision: a category's tier is derived from its price rank within the event,
+not from matching the word "Premium".**
+
+The seeded event uses Premium/Standard; the Spiderman event created through the
+UI uses Premium/**Normal**; an organiser could equally use Gold, Front or
+Stalls. Matching on a name would silently fail on real data — exactly the class
+of bug that only shows up in production.
+
+```
+tier 0 = highest priced category  → premium treatment
+tier 1 = next                     → standard treatment
+tier 2+                           → base treatment
+```
+
+An event with one category gets no tiering at all, rather than one section
+declared "premium" against nothing.
+
+### What "premium treatment" means
+
+The constraint: **status must stay the most legible thing on the map.** It is
+functional — it decides whether a seat can be clicked. Tier is contextual.
+Tier therefore uses channels status does not:
+
+| Channel                              | Carries                               |
+| ------------------------------------ | ------------------------------------- |
+| Fill and border colour               | **Status** — unchanged, still primary |
+| Hatching                             | Held by someone else — unchanged      |
+| Seat size, corner radius             | **Tier**                              |
+| Band background wash and rule weight | **Tier**                              |
+| Section header treatment             | **Tier**                              |
+
+Premium gets slightly larger seats, a warmer accent hairline, a faint band wash,
+and a heavier header rule. Standard stays as it is now. The premium band reads
+as the better part of the room at a glance without any seat's availability
+becoming harder to read.
+
+Colour is never the only tier signal — size and position carry it too, so the
+hierarchy survives greyscale and colour-blindness, consistent with the seat map
+rules already established in ADR-015.
+
+### Where else the tier shows
+
+- **The basket** groups selected seats by section rather than listing them flat
+- **The waitlist panel** already lists per category; it gains the same tier accent
+- **`SeatView`** gains `tier: number` so the client never re-derives ranking from
+  prices, which would drift from the server's ordering
+
+### Implementation note
+
+The visual pass runs through the **`ui-ux-pro-max`** skill at implementation
+time, applying the Phase 1 design system rather than generating a new one — a
+second design-system pass would produce a different palette and split the
+product in two.
+
+### Tests
+
+- Tier is derived from price order, not category name: an event with
+  "Gold ₹900 / Normal ₹300" tiers Gold as 0
+- Equal prices produce equal tiers rather than an arbitrary winner
+- A single-category event returns tier 0 for everything and renders no tiering
+- Row labels match `Seat.row` for every rendered row
+- Seat buttons keep their existing accessible names and status semantics
+
+---
+
 ## Migrations
 
 1. `seat_events` — `SeatEvent` table, `SeatEventKind` enum, two indexes
@@ -222,6 +329,8 @@ which is honest — the seed script can generate history for a demo.
 - No pair-aware waitlist offers in this pass
 - No companion-seat release policy near event time
 - No materialised rollups until measurement says they are needed
+- No tiering by category **name** — price rank only
+- No new design system; the Phase 1 tokens are applied, not replaced
 - No change to the hold or booking transaction's locking discipline. **The
   `FOR UPDATE`, the status re-read and the write stay together.**
 
@@ -234,4 +343,5 @@ which is honest — the seed script can generate history for a demo.
 3. Aggregation and the organiser view
 4. Publish toggle and the customer view
 5. Accessibility schema and atomic pairing
-6. Venue builder and seat map UI
+6. Seat map hierarchy — row labels, section bands, price-rank tiering
+7. Venue builder and the remaining seat map UI
