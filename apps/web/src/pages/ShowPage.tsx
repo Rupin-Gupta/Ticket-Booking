@@ -8,6 +8,8 @@ import { formatPrice, formatShowDate, formatShowTime } from '../lib/format.js';
 import { Alert, Button, Card, Skeleton } from '../components/ui.js';
 import { SeatMap } from '../components/SeatMap.js';
 import { HoldCountdown } from '../components/HoldCountdown.js';
+import { WaitlistPanel } from '../components/WaitlistPanel.js';
+import './offer.css';
 import './show.css';
 
 type ShowDetail = {
@@ -174,6 +176,7 @@ export function ShowPage() {
           ) : (
             <SeatMap seats={seatList} selected={selected} onToggle={toggle} disabled={busy} />
           )}
+          {seatList.length > 0 && <WaitlistPanel showId={id!} seats={seatList} />}
         </Card>
 
         <Card className="basket">

@@ -2,76 +2,11 @@ import { Prisma } from '@prisma/client';
 import type { Role } from '@ticket/shared';
 import { prisma } from '../../lib/prisma.js';
 import { ApiError } from '../../lib/errors.js';
-import { bookingReference, randomToken } from '../../lib/qr.js';
 import { enqueueEmail } from '../../jobs/email.queue.js';
+import { advanceWaitlist, type PendingOffer } from '../waitlist/service.js';
+import { bookingSelect, toBookingView, writeBooking, type BookingRow } from './write.js';
 
 type Caller = { sub: string; role: Role };
-
-const bookingSelect = {
-  id: true,
-  reference: true,
-  status: true,
-  createdAt: true,
-  cancelledAt: true,
-  show: {
-    select: {
-      id: true,
-      startsAt: true,
-      event: {
-        select: {
-          id: true,
-          title: true,
-          type: true,
-          venue: { select: { name: true, address: true } },
-        },
-      },
-    },
-  },
-  seats: {
-    select: {
-      priceAtBooking: true,
-      showSeat: {
-        select: { id: true, seat: { select: { section: true, row: true, number: true } } },
-      },
-    },
-  },
-} satisfies Prisma.BookingSelect;
-
-type BookingRow = Prisma.BookingGetPayload<{ select: typeof bookingSelect }>;
-
-/**
- * `qrToken` is deliberately absent from the shape sent to a client listing
- * their bookings. It is a bearer credential for entry, so it travels in the
- * emailed QR and on the single booking a customer explicitly opens — not in
- * every history response.
- */
-function toView(booking: BookingRow, opts: { includeQr?: string } = {}) {
-  const total = booking.seats.reduce((sum, s) => sum.add(s.priceAtBooking), new Prisma.Decimal(0));
-  return {
-    id: booking.id,
-    reference: booking.reference,
-    status: booking.status,
-    createdAt: booking.createdAt.toISOString(),
-    cancelledAt: booking.cancelledAt?.toISOString() ?? null,
-    show: {
-      id: booking.show.id,
-      startsAt: booking.show.startsAt.toISOString(),
-      eventId: booking.show.event.id,
-      title: booking.show.event.title,
-      type: booking.show.event.type,
-      venue: booking.show.event.venue.name,
-      address: booking.show.event.venue.address,
-    },
-    seats: booking.seats.map((s) => ({
-      showSeatId: s.showSeat.id,
-      label: `${s.showSeat.seat.row}${s.showSeat.seat.number}`,
-      section: s.showSeat.seat.section,
-      price: s.priceAtBooking.toString(),
-    })),
-    total: total.toString(),
-    ...(opts.includeQr ? { qrToken: opts.includeQr } : {}),
-  };
-}
 
 /* ---------------------------------------------------------------- booking */
 
@@ -134,37 +69,11 @@ export async function createBooking(showId: string, seatIds: string[], caller: C
         );
       }
 
-      // Price is read now and frozen onto the row. An organiser re-pricing a
-      // category next week must not retroactively rewrite this booking's
-      // revenue, and the customer paid what the seat cost today.
-      const categories = await tx.seatCategory.findMany({
-        where: { id: { in: [...new Set(rows.map((r) => r.categoryId))] } },
-        select: { id: true, price: true },
+      return writeBooking(tx, {
+        showId,
+        customerId: caller.sub,
+        seats: rows.map((r) => ({ id: r.id, categoryId: r.categoryId })),
       });
-      const priceOf = new Map(categories.map((c) => [c.id, c.price]));
-
-      const created = await tx.booking.create({
-        data: {
-          reference: bookingReference(),
-          qrToken: randomToken(),
-          customerId: caller.sub,
-          showId,
-          seats: {
-            create: rows.map((r) => ({
-              showSeatId: r.id,
-              priceAtBooking: priceOf.get(r.categoryId)!,
-            })),
-          },
-        },
-        select: bookingSelect,
-      });
-
-      await tx.showSeat.updateMany({
-        where: { id: { in: seatIds } },
-        data: { status: 'BOOKED', heldByUserId: null, holdExpiresAt: null },
-      });
-
-      return created;
     },
     { maxWait: 15_000, timeout: 20_000 },
   );
@@ -175,7 +84,7 @@ export async function createBooking(showId: string, seatIds: string[], caller: C
   // fail a booking the customer has already made.
   void enqueueEmail({ kind: 'booking-confirmed', bookingId: booking.id });
 
-  return toView(booking);
+  return toBookingView(booking);
 }
 
 /* ---------------------------------------------------------------- reading */
@@ -186,7 +95,7 @@ export async function listMyBookings(caller: Caller) {
     select: bookingSelect,
     orderBy: { createdAt: 'desc' },
   });
-  return rows.map((r) => toView(r));
+  return rows.map((r) => toBookingView(r));
 }
 
 export async function getBooking(id: string, caller: Caller) {
@@ -202,7 +111,7 @@ export async function getBooking(id: string, caller: Caller) {
     throw ApiError.forbidden('That booking belongs to someone else.');
   }
 
-  return toView(booking, {
+  return toBookingView(booking, {
     ...(booking.status === 'CONFIRMED' ? { includeQr: booking.qrToken } : {}),
   });
 }
@@ -249,20 +158,31 @@ export async function cancelBooking(id: string, caller: Caller) {
 
       const showSeatIds = booking.seats.map((s) => s.showSeatId);
 
-      // Phase 5 replaces this with advanceWaitlist(), which offers the seat to
-      // the next person in line instead of returning it to general sale.
-      await tx.showSeat.updateMany({
-        where: { id: { in: showSeatIds } },
-        data: { status: 'AVAILABLE', heldByUserId: null, holdExpiresAt: null },
-      });
+      // Each freed seat goes to the next person in line, not straight back on
+      // sale. Same function the offer sweeper calls — rule 3.
+      const offers: PendingOffer[] = [];
+      for (const showSeatId of showSeatIds) {
+        const pending = await advanceWaitlist(tx, showSeatId);
+        if (pending) offers.push(pending);
+      }
 
-      return showSeatIds;
+      return { showSeatIds, offers };
     },
     { maxWait: 15_000, timeout: 20_000 },
   );
 
   void enqueueEmail({ kind: 'booking-cancelled', bookingId: id });
-  return { cancelled: true, seatsReleased: freed.length };
+  // Offer emails go out after the transaction commits. Sending inside it would
+  // tell somebody about a seat a rollback then takes back.
+  for (const offer of freed.offers) {
+    void enqueueEmail({ kind: 'waitlist-offer', entryId: offer.entryId });
+  }
+
+  return {
+    cancelled: true,
+    seatsReleased: freed.showSeatIds.length,
+    offeredToWaitlist: freed.offers.length,
+  };
 }
 
 /* ----------------------------------------------------------- verification */

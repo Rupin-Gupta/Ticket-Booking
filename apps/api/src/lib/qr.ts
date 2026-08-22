@@ -29,6 +29,14 @@ export function bookingReference(): string {
 
 /** The URL the QR resolves to. Scanning it hits the server, which is the only
  *  party that can say whether a ticket is real. */
+/**
+ * Where a waitlist offer email points. Time-limited and single use — the token
+ * is cleared the moment the offer is accepted or expires, so a forwarded link
+ * stops working rather than quietly handing the seat to whoever clicks it.
+ */
+export const offerUrl = (offerToken: string) =>
+  `${env.WEB_URL.split(',')[0]!.trim()}/offers/${offerToken}`;
+
 export const verifyUrl = (qrToken: string) =>
   `${env.WEB_URL.split(',')[0]!.trim()}/verify/${qrToken}`;
 

@@ -474,3 +474,46 @@ ticket away from them is far worse than not sending it. The check is on
 `NODE_ENV`, not on the variable being absent.
 
 _Not a substitute for:_ verifying a domain before the app is genuinely public.
+
+---
+
+## ADR-022 — Booking creation extracted to `bookings/write.ts`
+
+**Accepted** · 2026-08-22
+
+`writeBooking()`, `bookingSelect` and `toBookingView()` live in their own module
+rather than in `bookings/service.ts`.
+
+_Why:_ two paths now turn seats into a booking — normal checkout from a hold,
+and accepting a waitlist offer. `bookings/service` must import
+`waitlist/service` for `advanceWaitlist()`, so `waitlist/service` cannot import
+`bookings/service` back without a cycle. Both import this instead.
+
+_The point is not the cycle:_ it is that there is **one** implementation of
+"turn seats into a booking". Two copies would drift on exactly the things that
+matter — the price snapshot, the QR token, flipping the seats to BOOKED.
+
+`writeBooking()` deliberately performs no validation. Its two callers verify
+different preconditions — a live hold owned by the caller, versus a valid,
+unexpired, correctly-addressed offer — and folding both into one function would
+produce a parameter that means "which kind of check to run".
+
+---
+
+## ADR-023 — Queue position is derived, never stored
+
+**Accepted** · 2026-08-22
+
+A customer's place in line is computed as
+`count(WAITING entries with an earlier joinedAt) + 1`.
+
+_Alternative:_ a `position` column maintained on write.
+
+_Why not:_ every departure from the middle of a queue would have to renumber
+everyone behind, in a transaction, or the numbers silently rot. `joinedAt`
+already totally orders the queue and is the same column `advanceWaitlist()`
+sorts by — so the number a customer sees and the order the server actually uses
+cannot disagree.
+
+_Cost:_ one extra count per entry when listing. Irrelevant at this scale, and
+the index on `(showId, categoryId, status, joinedAt)` already covers it.

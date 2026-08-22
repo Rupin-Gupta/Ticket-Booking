@@ -2,15 +2,16 @@ import { Queue, Worker, type JobsOptions } from 'bullmq';
 import { Prisma } from '@prisma/client';
 import { getRedis } from '../lib/redis.js';
 import { sendMail } from '../lib/mailer.js';
-import { bookingCancelledEmail, bookingConfirmedEmail } from '../lib/emails.js';
-import { renderQrDataUrl, verifyUrl } from '../lib/qr.js';
+import { bookingCancelledEmail, bookingConfirmedEmail, waitlistOfferEmail } from '../lib/emails.js';
+import { offerUrl, renderQrDataUrl, verifyUrl } from '../lib/qr.js';
 import { prisma } from '../lib/prisma.js';
 
 const QUEUE = 'email';
 
 export type EmailJob =
   | { kind: 'booking-confirmed'; bookingId: string }
-  | { kind: 'booking-cancelled'; bookingId: string };
+  | { kind: 'booking-cancelled'; bookingId: string }
+  | { kind: 'waitlist-offer'; entryId: string };
 
 const JOB_OPTIONS: JobsOptions = {
   // Five tries over roughly a minute and a half. A provider blip should not
@@ -39,15 +40,16 @@ function getQueue(): Queue<EmailJob> | null {
  * into a 500 for a customer whose seat is confirmed in the database.
  */
 export async function enqueueEmail(job: EmailJob): Promise<void> {
+  const subject = job.kind === 'waitlist-offer' ? job.entryId : job.bookingId;
   const q = getQueue();
   if (!q) {
-    console.warn(`[email] REDIS_URL not set — ${job.kind} for ${job.bookingId} was not queued`);
+    console.warn(`[email] REDIS_URL not set — ${job.kind} for ${subject} was not queued`);
     return;
   }
   try {
     await q.add(job.kind, job, JOB_OPTIONS);
   } catch (err) {
-    console.error(`[email] could not queue ${job.kind} for ${job.bookingId}`, err);
+    console.error(`[email] could not queue ${job.kind} for ${subject}`, err);
   }
 }
 
@@ -58,6 +60,8 @@ export async function enqueueEmail(job: EmailJob): Promise<void> {
  * sending nothing.
  */
 async function process(job: EmailJob) {
+  if (job.kind === 'waitlist-offer') return processOffer(job.entryId);
+
   const booking = await prisma.booking.findUnique({
     where: { id: job.bookingId },
     select: {
@@ -133,6 +137,54 @@ async function process(job: EmailJob) {
   });
 
   console.log(`[email] sent ${job.kind} for ${booking.reference} to ${booking.customer.email}`);
+}
+
+/**
+ * Re-reads the entry rather than trusting the payload. By the time a retry
+ * runs, the offer may have expired and moved on to somebody else — emailing a
+ * link that is already dead is worse than emailing nothing.
+ */
+async function processOffer(entryId: string) {
+  const entry = await prisma.waitlistEntry.findUnique({
+    where: { id: entryId },
+    select: {
+      status: true,
+      offerToken: true,
+      offerExpiresAt: true,
+      customer: { select: { name: true, email: true } },
+      category: { select: { name: true, price: true } },
+      show: {
+        select: {
+          startsAt: true,
+          event: { select: { title: true, venue: { select: { name: true } } } },
+        },
+      },
+    },
+  });
+
+  if (!entry || entry.status !== 'OFFERED' || !entry.offerToken || !entry.offerExpiresAt) {
+    console.warn(`[email] waitlist offer ${entryId} is no longer open, skipping`);
+    return;
+  }
+
+  const minutes = Math.max(1, Math.round((entry.offerExpiresAt.getTime() - Date.now()) / 60_000));
+
+  await sendMail({
+    to: entry.customer.email,
+    subject: `A seat opened up — ${entry.show.event.title}`,
+    html: waitlistOfferEmail({
+      name: entry.customer.name,
+      eventTitle: entry.show.event.title,
+      venue: entry.show.event.venue.name,
+      startsAt: entry.show.startsAt.toUTCString(),
+      category: entry.category.name,
+      price: entry.category.price.toFixed(2),
+      minutes,
+      offerUrl: offerUrl(entry.offerToken),
+    }),
+  });
+
+  console.log(`[email] sent waitlist-offer ${entryId} to ${entry.customer.email}`);
 }
 
 let worker: Worker<EmailJob> | null = null;

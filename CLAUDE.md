@@ -357,7 +357,7 @@ the index.
 
 ## Current phase
 
-`Phase 5 — Waitlist & time-limited offers (evaluation-critical), not started.
-Phases 0-4 complete: auth, venues, events, holds with proven concurrency,
-bookings with QR tickets emailed via a queued worker. 52 tests green.
-All accounts configured. Detail in docs/CONTEXT.md.`
+`Phase 6 — Real-time seat map, not started. Phases 0-5 complete, including BOTH
+evaluation-critical phases: 20 parallel holds on one seat yield exactly one 201,
+and an ignored waitlist offer walks the queue to the next person on its own.
+66 tests green. Detail in docs/CONTEXT.md.`

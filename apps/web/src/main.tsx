@@ -14,6 +14,7 @@ import { OrganiserPage } from './pages/OrganiserPage.js';
 import { BookingsPage } from './pages/BookingsPage.js';
 import { TicketPage } from './pages/TicketPage.js';
 import { VerifyPage } from './pages/VerifyPage.js';
+import { OfferPage } from './pages/OfferPage.js';
 import './styles/base.css';
 
 const root = document.getElementById('root');
@@ -33,6 +34,10 @@ createRoot(root).render(
             {/* Where a scanned QR lands. Public by necessity — the person on
                 the door is not logged in. */}
             <Route path="/verify/:token" element={<VerifyPage />} />
+            {/* Where the waitlist offer email lands. Reading is public — it is
+                often opened on a phone that is not signed in yet — but claiming
+                requires the account the offer was made to. */}
+            <Route path="/offers/:token" element={<OfferPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
 
