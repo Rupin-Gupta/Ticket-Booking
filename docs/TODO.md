@@ -23,19 +23,25 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [x] Prisma schema written from `CLAUDE.md` (+ the `Show.bookings`
       back-relation it was missing), client generates
 - [x] `apps/api/.env.example` with every key, validated by `src/env.ts`
-- [ ] **Supabase project created, `DATABASE_URL` + `DIRECT_URL` set** ← user action
-- [ ] **Upstash Redis created, `REDIS_URL` set** ← user action
-- [ ] `JWT_SECRET` generated (`openssl rand -base64 48`) ← user action
-- [ ] First migration applied (`npm run db:migrate`) — needs Supabase first
+- [x] Supabase project created, `DATABASE_URL` (`:6543`, `?pgbouncer=true`) +
+      `DIRECT_URL` (`:5432`) set
+- [x] `JWT_SECRET` generated
+- [x] First migration applied — `20260822094817_init`, all 10 tables live
+- [ ] Upstash Redis created, `REDIS_URL` set ← user action, **needed by Phase 3**
+- [ ] Resend account, `RESEND_API_KEY` set ← user action, **needed by Phase 4**
 
 **Done when:** `npm run dev` starts both apps, `/health` returns 200, and
-`prisma migrate dev` applies cleanly against Supabase.
+`prisma migrate dev` applies cleanly against Supabase. ✅ **All three true.**
 
-**Verified so far:** `npm run typecheck` clean across all three workspaces ·
+**Verified:** `npm run typecheck` clean across all three workspaces ·
 `/health` 200 with a config checklist · vite proxy reaches the API ·
 CORS returns no allow-origin for a foreign origin · helmet headers present ·
-404s return the standard error shape. Migration is the only item left, and it
-is blocked on the three accounts above.
+404s return the standard error shape · 10 tables, 5 enums and the two
+`ShowSeat` indexes confirmed present **through the pooled `:6543` connection**,
+which is what proves `?pgbouncer=true` is working.
+
+> Upstash and Resend are listed here because the accounts belong with the other
+> setup, but neither blocks Phase 1 or Phase 2.
 
 ## Phase 1 — Auth and roles
 

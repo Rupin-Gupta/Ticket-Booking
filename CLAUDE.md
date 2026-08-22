@@ -346,6 +346,6 @@ the index.
 
 ## Current phase
 
-`Phase 0 — scaffolding done and verified. Blocked on user creating Supabase +
-Upstash and filling apps/api/.env; then run npm run db:migrate and start
-Phase 1 (auth). Full detail in docs/CONTEXT.md.`
+`Phase 1 — Auth & roles, not started. Phase 0 complete: monorepo runs, Supabase
+connected, migration 20260822094817_init applied. Full detail in
+docs/CONTEXT.md.`

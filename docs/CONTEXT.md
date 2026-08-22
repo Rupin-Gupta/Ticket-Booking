@@ -12,15 +12,58 @@ an entry here costs the next one twenty minutes of rediscovery.
 
 |                 |                                                                                                                     |
 | --------------- | ------------------------------------------------------------------------------------------------------------------- |
-| **Phase**       | 0 — Foundations, scaffolding done                                                                                   |
-| **Runnable?**   | Yes. `npm install && npm run dev` → API on :4000, web on :5173. No database yet.                                    |
+| **Phase**       | **0 — COMPLETE.** Phase 1 (auth) is next.                                                                           |
+| **Runnable?**   | Yes, with a live database. `npm run dev` → API on :4000, web on :5173, Supabase connected.                          |
 | **Repo**        | Local git initialised. Remote `https://github.com/Rupin-Gupta/Ticket-Booking.git` — **not pushed yet, user pushes** |
-| **Blocked on**  | Three accounts, user action: Supabase, Upstash, Resend                                                              |
-| **Next action** | User creates Supabase + Upstash, fills `apps/api/.env`, then `npm run db:migrate`. Phase 1 (auth) after that.       |
+| **Blocked on**  | Nothing. Upstash needed by Phase 3, Resend by Phase 4 — neither blocks Phase 1 or 2.                                |
+| **Next action** | Phase 1: Argon2id, JWT + role middleware, register/login/me, seed script.                                           |
 
-`/health` reports which of database / redis / auth / email are still
-unconfigured, and the web placeholder renders that as a checklist — so the
-remaining setup is visible without reading code.
+`/health` reports which of database / redis / auth / email are configured and
+round-trips a `SELECT 1`, and the web placeholder renders that as a checklist —
+so the remaining setup is visible without reading code.
+
+---
+
+## 2026-08-22 — Session 4: database live, Phase 0 closed
+
+**Did**
+
+- Owner filled in `apps/api/.env`. Migration `20260822094817_init` applied to
+  Supabase — all 10 tables, 5 enums, every index.
+- Verified the schema **through the pooled `:6543` connection**, not just the
+  migration connection. That is the check that actually proves
+  `?pgbouncer=true` works; querying only via `DIRECT_URL` would have passed
+  while leaving the app's own path untested.
+- `ShowSeat` confirmed carrying `ShowSeat_showId_seatId_key` and
+  `ShowSeat_showId_status_idx` — the two the hold path depends on.
+
+**Three real problems, all fixed**
+
+1. **Blank env values crashed the boot.** `JWT_SECRET=""` from the copied
+   example reached `z.string().min(32)` before `.optional()` applied. All
+   optional vars now go through `blankAsUnset()`; the connection strings also
+   gained `.url()`, so a malformed one fails at boot rather than at first query.
+2. **Password contained `@`.** Connection strings are URLs, so it has to be
+   `%40` or the parser takes the wrong `@` as the host delimiter. Both strings
+   were re-encoded in place, and `.env.bak` was deleted rather than left
+   sitting on disk holding the raw password.
+3. **`npm run db:migrate -- --name init` silently swallowed the flag** — the
+   outer `npm run` ate it, so Prisma fell back to prompting interactively for a
+   name with no TTY and hung with zero output. Root script now ends in `--` so
+   arguments forward. Verified: a second run reports "Already in sync" with no
+   prompt.
+
+**Correction worth recording:** the zero-output hang looked exactly like the
+documented pooler trap and was called as such. It was not. The log showed
+`Datasource "db": … at …:5432` — the connection had already succeeded. Check
+whether the datasource line printed before blaming the pooler; that is now in
+`docs/DEBUGGING.md`.
+
+**Next session starts with**
+
+Phase 1 — Argon2id helpers, `POST /auth/register` (role hard-coded `CUSTOMER`),
+`POST /auth/login` with HS256 pinned, `requireAuth` / `requireRole`, seed
+script, and the web login flow.
 
 ---
 
