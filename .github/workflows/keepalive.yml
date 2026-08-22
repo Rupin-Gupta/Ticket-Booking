@@ -1,0 +1,51 @@
+name: Keep alive
+
+# Supabase pauses a free project after 7 days with no DATABASE activity, and
+# restoring it is a manual click in their dashboard. A paused database means the
+# hosted URL is dead — which, for a submission that sits between being sent and
+# being reviewed, is a realistic way to fail.
+#
+# /health round-trips a `SELECT 1`, so hitting it counts as activity. Visiting
+# the Supabase dashboard does not.
+#
+# This also keeps Render's free instance warm, so the first real visitor does
+# not wait out a ~50s cold start.
+
+on:
+  schedule:
+    # 06:00 UTC daily. GitHub's scheduler can lag by several minutes under load,
+    # which is irrelevant against a 7-day window.
+    - cron: '0 6 * * *'
+  workflow_dispatch: # so it can be proven to work without waiting a day
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping the API health endpoint
+        env:
+          # Repository → Settings → Secrets and variables → Actions → Variables
+          API_URL: ${{ vars.API_URL }}
+        run: |
+          if [ -z "$API_URL" ]; then
+            echo "::error::API_URL repository variable is not set — the keep-alive is doing nothing."
+            exit 1
+          fi
+
+          # Render's free tier cold-starts, so allow a generous timeout and one
+          # retry rather than reporting a false failure.
+          for attempt in 1 2 3; do
+            echo "Attempt $attempt..."
+            body=$(curl --silent --show-error --max-time 90 "$API_URL/health") && break
+            sleep 15
+          done
+
+          echo "$body"
+
+          # A 200 with database:"unreachable" is exactly the failure this job
+          # exists to catch, so check the payload rather than only the status.
+          echo "$body" | grep -q '"database":"up"' || {
+            echo "::error::Health responded but the database is not reachable."
+            exit 1
+          }
+          echo "Database is awake."

@@ -210,16 +210,30 @@ re-pricing a category to 999 does not move a single rupee of past revenue.
 
 ## Phase 8 — Deploy, document, verify
 
-- [ ] API → Render (env vars, build + start, worker process)
-- [ ] Web → Vercel (`VITE_API_URL`)
-- [ ] DB → Supabase, migrations applied via `DIRECT_URL`
-- [ ] **Daily keep-alive cron hitting the deployed `/health`** — Supabase pauses
-      a free project after 7 days of no queries and restoring it is manual
-- [ ] Smoke-test the full flow live: browse → hold → book → email → cancel → offer
+Everything that does not require a live deployment is done.
+
+- [x] `render.yaml` Blueprint — build runs `prisma migrate deploy`
+- [x] `vercel.json` at the repo **root** (Root Directory `apps/web` cannot
+      resolve the `@ticket/shared` workspace), SPA rewrites + asset caching
+- [x] **Daily keep-alive workflow** — checks `"database":"up"` in the payload,
+      not just a 200, since that is exactly the failure it exists to catch
+- [x] README: setup, env vars, hold + waitlist logic, schema, API, deploy guide
+- [x] `SYSTEM_DESIGN.md` — 780 words, under the 800 limit
+- [x] `npm run zip` — `git archive`, so it can never include `.env` or `node_modules`
+- [x] Production-mode boot verified locally: CORS rejects a foreign origin,
+      helmet headers present, `x-powered-by` removed, errors do not leak detail
+- [x] Production web build verified: `VITE_API_URL` baked in, zero `localhost` refs
+- [ ] **Push to GitHub** ← owner action; Render deploys from the repo
+- [ ] API → Render, Web → Vercel
+- [ ] Set `WEB_URL` on Render to the Vercel URL (it is the CORS allowlist)
+- [ ] Set the `API_URL` repository variable, run the keep-alive once manually
+- [ ] Seed demo data against production
+- [ ] Smoke-test live: browse → hold → book → email → cancel → offer
 - [ ] Re-run the concurrency test against production
-- [ ] README: setup, `.env.example`, API docs, DB schema, hold + waitlist logic
-- [ ] `SYSTEM_DESIGN.md` — 800 words max
-- [ ] Zip the source
+- [ ] `npm run zip`
+
+**Done when:** all four deliverables exist and the hosted URL works from a
+device that never ran the project.
 
 **Done when:** all four deliverables exist and the hosted URL works from a
 device that never ran the project.

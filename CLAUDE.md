@@ -357,7 +357,7 @@ the index.
 
 ## Current phase
 
-`Phase 8 — Deploy, document, verify. Phases 0-7 complete: the entire brief is
-built and working locally, 79 tests green, including both graded phases and
-revenue reporting. What remains is deployment, the README, SYSTEM_DESIGN.md and
-the zip. Detail in docs/CONTEXT.md.`
+`Phase 8 — deploy config and all documentation complete; deployment itself is
+blocked on the owner pushing to GitHub. 79 tests green. Deliverables 1, 2 and 4
+are done (zip script, README, SYSTEM_DESIGN.md); only #3, the hosted URL,
+remains. Detail in docs/CONTEXT.md.`

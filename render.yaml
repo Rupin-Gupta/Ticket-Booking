@@ -1,0 +1,53 @@
+# Render Blueprint for the API.
+#
+# The database lives on Supabase and the frontend on Vercel, so this file
+# describes one web service. Deliberately not a Render Postgres: the free tier
+# there expires after 30 days, which would kill a hosted submission mid-review.
+#
+# Import via Render → New → Blueprint, pointing at this repository.
+
+services:
+  - type: web
+    name: ticket-booking-api
+    runtime: node
+    plan: free
+    region: singapore # match your Supabase region — cross-region adds ~200ms per query
+    rootDir: .
+    # Install everything (workspaces), generate the Prisma client, then apply
+    # any pending migrations. `migrate deploy` is the non-interactive form and
+    # uses DIRECT_URL, which is why both connection strings are required.
+    buildCommand: npm ci && npm run db:generate -w apps/api && npm run db:deploy -w apps/api
+    startCommand: npm run start -w apps/api
+    healthCheckPath: /health
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Render injects PORT; env.ts reads it.
+      - key: WEB_URL
+        sync: false # set to the Vercel URL — this is the CORS allowlist
+      - key: DATABASE_URL
+        sync: false # Supabase TRANSACTION pooler, :6543, ?pgbouncer=true
+      - key: DIRECT_URL
+        sync: false # Supabase SESSION pooler, :5432 — migrations only
+      - key: REDIS_URL
+        sync: false # Upstash rediss:// — the email queue and socket adapter
+      - key: JWT_SECRET
+        sync: false # openssl rand -base64 48
+      - key: RESEND_API_KEY
+        sync: false
+      - key: MAIL_FROM
+        value: Ticket Booking <onboarding@resend.dev>
+      # MAIL_REDIRECT_TO is deliberately absent: it is ignored in production,
+      # because silently redirecting a customer's ticket is worse than not
+      # sending it.
+      - key: HOLD_TTL_SECONDS
+        value: 600
+      - key: OFFER_TTL_SECONDS
+        value: 600
+      - key: SWEEPER_INTERVAL_MS
+        value: 10000
+      - key: MAX_SEATS_PER_HOLD
+        value: 6
+      - key: MAX_ACTIVE_HOLDS_PER_USER
+        value: 2
