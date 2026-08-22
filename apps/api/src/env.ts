@@ -11,6 +11,17 @@ try {
 
 const seconds = (fallback: number) => z.coerce.number().int().positive().default(fallback);
 
+/**
+ * Treat an empty or whitespace-only value as absent.
+ *
+ * Copying .env.example leaves lines like `JWT_SECRET=""` behind, and an empty
+ * string is not undefined — it would reach `.min(32)` and take the whole
+ * process down at boot with a validation error, before anything useful runs.
+ * A key that is present but blank means "not set yet", so say so.
+ */
+const blankAsUnset = <T extends z.ZodTypeAny>(inner: T) =>
+  z.preprocess((v) => (typeof v === 'string' && v.trim() === '' ? undefined : v), inner);
+
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(4000),
@@ -20,16 +31,16 @@ const schema = z.object({
 
   // --- Infrastructure. Optional so the app boots before the accounts exist;
   // requireEnv() below is what fails loudly when a subsystem actually needs one.
-  DATABASE_URL: z.string().optional(),
-  DIRECT_URL: z.string().optional(),
-  REDIS_URL: z.string().optional(),
+  DATABASE_URL: blankAsUnset(z.string().url().optional()),
+  DIRECT_URL: blankAsUnset(z.string().url().optional()),
+  REDIS_URL: blankAsUnset(z.string().url().optional()),
 
   // --- Auth
-  JWT_SECRET: z.string().min(32).optional(),
+  JWT_SECRET: blankAsUnset(z.string().min(32).optional()),
   JWT_EXPIRES_IN: z.string().default('15m'),
 
   // --- Email
-  RESEND_API_KEY: z.string().optional(),
+  RESEND_API_KEY: blankAsUnset(z.string().optional()),
   MAIL_FROM: z.string().default('Ticket Booking <onboarding@resend.dev>'),
 
   // --- Seat hold / waitlist tuning. The brief calls the hold TTL
