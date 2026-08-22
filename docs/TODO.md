@@ -122,16 +122,28 @@ duplicate seat ids, foreign seats and missing auth are all rejected.
 
 ## Phase 4 — Booking, QR, email
 
-- [ ] `POST /bookings` — locked, requires seats `HELD` by caller and unexpired
-- [ ] `reference` generator + `qrToken` (32 random bytes)
-- [ ] `GET /bookings` (history), `GET /bookings/:id`
-- [ ] `POST /bookings/:id/cancel` — owner-checked
-- [ ] `GET /verify/:qrToken` — the URL the QR encodes
-- [ ] BullMQ email worker: render QR, send via Resend, retry + backoff
-- [ ] Web: checkout, confirmation, booking history, cancel flow
+- [x] `POST /bookings` — locked, requires seats `HELD` by caller and unexpired
+- [x] `reference` generator (typo-resistant alphabet) + `qrToken` (32 random bytes)
+- [x] `GET /bookings` (history), `GET /bookings/:id` (owner-checked, carries the QR)
+- [x] `POST /bookings/:id/cancel` — owner-checked, refuses after the show starts
+- [x] `GET /verify/:qrToken` — public, reveals nothing about the customer
+- [x] BullMQ email worker: renders QR, sends via Resend, 5 attempts with backoff
+- [x] `MAIL_REDIRECT_TO` so seeded accounts can receive mail in dev (ADR-021)
+- [x] Web: checkout from a hold, ticket page with QR, history, cancel, verify page
+- [x] Partial unique index replacing the too-tight `@unique` (ADR-020)
+- [x] 17 more tests (52 total), all green
 
 **Done when:** a booking returns immediately, the email lands with a scannable
-QR, and killing the mail provider does not fail the booking.
+QR, and killing the mail provider does not fail the booking. ✅ **All three —
+and the third was proven accidentally**: Resend rejected the first send because
+the demo address is not the account owner, the job retried five times and
+failed, and the booking stayed confirmed throughout.
+
+Also covered: booking someone else's held seat is refused and leaves their hold
+intact; an expired hold cannot be booked; two simultaneous bookings of one seat
+produce exactly one; a stranger gets 403 on both reading and cancelling; a
+cancelled ticket verifies as invalid rather than vanishing; and a released seat
+can be booked again — the case the old `@unique` made impossible.
 
 ## Phase 5 — Waitlist and time-limited offers ⭐ evaluation-critical
 

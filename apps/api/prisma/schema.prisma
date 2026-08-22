@@ -130,7 +130,10 @@ model ShowSeat {
   holdExpiresAt  DateTime?
   offerExpiresAt DateTime?
 
-  bookingSeat BookingSeat?
+  /// One-to-many across time, not one-to-one: a seat booked, cancelled and
+  /// sold again accumulates one row per booking. At most one of them is live
+  /// (releasedAt IS NULL), which the partial unique index below enforces.
+  bookingSeats BookingSeat[]
 
   @@unique([showId, seatId])
   @@index([showId, status])
@@ -172,11 +175,27 @@ model BookingSeat {
   booking   Booking  @relation(fields: [bookingId], references: [id])
   bookingId String
   showSeat  ShowSeat @relation(fields: [showSeatId], references: [id])
-  /// The seatbelt: Postgres refuses to record one show-seat in two bookings,
-  /// even if every application-level check were wrong.
-  showSeatId     String  @unique
+  showSeatId     String
   priceAtBooking Decimal
+
+  /// Set when the booking holding this seat is cancelled. The row stays —
+  /// revenue history and the cancellation email both need to know what was
+  /// booked and at what price — but it stops counting as a live claim.
+  releasedAt DateTime?
+
+  @@unique([bookingId, showSeatId])
+  @@index([showSeatId])
 }
+
+/// The seatbelt lives in a partial unique index that Prisma cannot express:
+///
+///   CREATE UNIQUE INDEX "BookingSeat_showSeatId_live_key"
+///     ON "BookingSeat"("showSeatId") WHERE "releasedAt" IS NULL;
+///
+/// It is created by hand in migration 20260822_booking_seat_release. Postgres
+/// therefore refuses to record one show-seat in two LIVE bookings even if every
+/// application check were wrong — while still allowing a cancelled seat to be
+/// sold again, which a plain @unique made impossible.
 
 model WaitlistEntry {
   id             String         @id @default(uuid())

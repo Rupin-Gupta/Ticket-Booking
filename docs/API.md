@@ -84,13 +84,13 @@ POST /api/v1/shows/{showId}/holds
 
 ## Bookings
 
-|     | Endpoint                    | Role     | Notes                                                                                                                           |
-| --- | --------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------- |
-|     | `POST /bookings`            | CUSTOMER | `{ showId, seatIds[] }`. Requires the seats be `HELD` by the caller and unexpired. Returns immediately; the QR email is queued. |
-|     | `GET /bookings`             | CUSTOMER | Booking history.                                                                                                                |
-|     | `GET /bookings/:id`         | CUSTOMER | Owner-checked.                                                                                                                  |
-|     | `POST /bookings/:id/cancel` | CUSTOMER | Owner-checked. Frees each seat through `advanceWaitlist()`.                                                                     |
-|     | `GET /verify/:qrToken`      | public   | What the QR resolves to. Returns validity + show + seats, never the customer's email.                                           |
+|     | Endpoint                    | Role     | Notes                                                                                                                                                                                                                         |
+| --- | --------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ✅  | `POST /bookings`            | any auth | `{ showId, seatIds[] }`. Locked transaction; every seat must be `HELD` **by the caller** and unexpired, else `409 HOLD_NOT_VALID`. Price is frozen onto the row. Returns immediately — the QR email is queued, never awaited. |
+| ✅  | `GET /bookings`             | any auth | Own history, newest first. Deliberately **without** `qrToken`.                                                                                                                                                                |
+| ✅  | `GET /bookings/:id`         | any auth | Owner-checked (`403` otherwise). Includes `qrToken` when confirmed — this is the only route that returns it.                                                                                                                  |
+| ✅  | `POST /bookings/:id/cancel` | any auth | Owner-checked. Marks the booking cancelled, releases the seats, marks each `BookingSeat.releasedAt`. `409 ALREADY_CANCELLED` / `409 SHOW_ALREADY_STARTED`. Phase 5 routes the freed seat through `advanceWaitlist()`.         |
+| ✅  | `GET /verify/:qrToken`      | public   | What the QR resolves to. `{ valid, status, reference, eventTitle, venue, startsAt, seats }` — never the customer's name or email. A cancelled ticket resolves with `valid: false` rather than 404.                            |
 
 ## Waitlist ⭐
 

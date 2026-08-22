@@ -13,10 +13,10 @@ an entry here costs the next one twenty minutes of rediscovery.
 |                 |                                                                                                                     |
 | --------------- | ------------------------------------------------------------------------------------------------------------------- |
 | **Phase**       | **2 — COMPLETE.** Phase 3 (seat map, holds, concurrency) is next — evaluation-critical.                             |
-| **Runnable?**   | Yes. Browse → pick a show → select seats on a live map → hold them on a countdown → release.                        |
+| **Runnable?**   | Yes, end to end: browse → seat map → hold → book → QR ticket by email → view → cancel → seat back on sale.          |
 | **Repo**        | Local git initialised. Remote `https://github.com/Rupin-Gupta/Ticket-Booking.git` — **not pushed yet, user pushes** |
-| **Blocked on**  | **Resend API key needed for Phase 4's QR ticket email.** Redis is set up and idle until then.                       |
-| **Next action** | Phase 4: `POST /bookings`, QR token + generation, queued email worker, booking history and cancel.                  |
+| **Blocked on**  | Nothing. All three accounts are configured and working.                                                             |
+| **Next action** | Phase 5: `advanceWaitlist()` FIFO with SKIP LOCKED, offer expiry sweeper branch, accept-offer endpoint.             |
 
 Demo logins (`npm run db:seed -w apps/api`), all `password123`:
 `admin@ticket.dev`, `organiser@ticket.dev`, `customer@ticket.dev`,
@@ -26,6 +26,67 @@ Run `npm test -w apps/api` for the auth suite.
 `/health` reports which of database / redis / auth / email are configured and
 round-trips a `SELECT 1`, and the web placeholder renders that as a checklist —
 so the remaining setup is visible without reading code.
+
+---
+
+## 2026-08-22 — Session 8: Phase 4, booking, QR and email
+
+**Schema bug found by a test (ADR-020).** `BookingSeat.showSeatId @unique` —
+described in my own docs as the seatbelt — meant a show-seat could appear in
+**one booking ever**. The row survives cancellation on purpose (revenue history
+and the cancellation email both need it), so the constraint occupied the seat
+permanently and a cancelled seat could never be resold. The test asserting "a
+released seat can be booked again" caught it.
+
+Replaced with the invariant that was actually intended: a nullable `releasedAt`
+plus a **partial** unique index, `WHERE "releasedAt" IS NULL`. Prisma cannot
+express that, so migration `20260822120000_booking_seat_release` is hand-written
+and the index is invisible to `schema.prisma` — a future `migrate dev` may
+report it as drift and try to drop it. Flagged in three places.
+`ShowSeat.bookingSeat` also became `bookingSeats[]`; the relation is
+one-to-many across time.
+
+**Rule 5 got proved by accident.** Resend rejected the first real send —
+`onboarding@resend.dev` only delivers to the account owner — so the job failed
+five times with backoff while the booking stayed confirmed the whole time. That
+is exactly the property queuing exists for, demonstrated rather than asserted.
+`MAIL_REDIRECT_TO` (ADR-021) now makes the demo deliverable in development;
+it is refused under `NODE_ENV=production`.
+
+**Two sweeper defects fixed**
+
+- It fired a tick at import, before anything had connected, logging "can't
+  reach database server" on every boot. Removed; the first sweep is one
+  interval away, well inside any hold's TTL.
+- Supabase's pooler recycles idle connections, so a quiet sweep found its
+  socket closed (`P1017`). One retry is enough for Prisma to reconnect.
+
+**Design notes worth keeping**
+
+- The QR encodes `/verify/{token}`, never booking data. Raw JSON in a QR is
+  forgeable by anyone with a generator; the short human reference is guessable.
+- `qrToken` is absent from the history response and present only on the single
+  booking its owner opens. It is a bearer credential for entry.
+- The booking reference alphabet excludes I, O, 0 and 1 — it gets read aloud.
+- `/verify` is public (door staff are not logged in) and returns nothing about
+  the customer. A QR gets photographed and forwarded.
+- A cancelled ticket still resolves, marked invalid. The door needs to tell
+  "not a ticket" apart from "a cancelled ticket".
+
+**Verified**
+
+52/52 tests. Typecheck clean. Web builds (303 kB / 96 kB gzipped). Live: booked
+BK-KU2QG, seats went BOOKED, owner saw the QR token and a stranger got 403,
+`/verify` returned valid with no email in the body, cancelling released both
+seats and invalidated the code, and the freed seat was immediately re-bookable
+by another customer. A real email with the QR was delivered.
+
+**Next session starts with**
+
+Phase 5 — `advanceWaitlist()`, FIFO by `joinedAt` with `FOR UPDATE SKIP
+LOCKED`, the offer-expiry sweeper branch calling the _same_ function as
+cancellation, the accept-offer endpoint with all five checks, and the waitlist
+ordering test.
 
 ---
 

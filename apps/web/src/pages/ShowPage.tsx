@@ -114,6 +114,27 @@ export function ShowPage() {
     }
   }
 
+  const heldTotal = myHeldSeats.reduce((sum, s) => sum + Number(s.price), 0);
+
+  async function confirmBooking() {
+    setError(null);
+    setBusy(true);
+    try {
+      const { booking } = await api.post<{ booking: { id: string } }>('/api/v1/bookings', {
+        showId: id,
+        seatIds: myHeldSeats.map((s) => s.id),
+      });
+      // Straight to the ticket. The email is queued and may land a moment
+      // later; the customer should not have to wait for it to see the QR.
+      navigate(`/bookings/${booking.id}`);
+    } catch (err) {
+      setError(messageFor(err));
+      reloadSeats();
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const onHoldExpired = useCallback(() => {
     setHold(null);
     setError('Your hold expired and the seats were released.');
@@ -159,6 +180,7 @@ export function ShowPage() {
           {hold ? (
             <>
               <h2 className="basket__title">Seats held</h2>
+              {error && <Alert>{error}</Alert>}
               <p className="basket__timer">
                 Releasing in{' '}
                 <HoldCountdown expiresAt={hold.holdExpiresAt} onExpire={onHoldExpired} />
@@ -174,10 +196,19 @@ export function ShowPage() {
                   </li>
                 ))}
               </ul>
-              <p className="basket__soon">Checkout arrives in Phase 4.</p>
-              <Button variant="ghost" full loading={busy} onClick={release}>
+              <p className="basket__total">
+                <span>Total</span>
+                <strong>{formatPrice(heldTotal)}</strong>
+              </p>
+              <Button variant="cta" full loading={busy} onClick={confirmBooking}>
+                Confirm booking
+              </Button>
+              <Button variant="quiet" full loading={busy} onClick={release}>
                 Release seats
               </Button>
+              <p className="basket__note">
+                Your QR ticket is emailed as soon as the booking is confirmed.
+              </p>
             </>
           ) : (
             <>

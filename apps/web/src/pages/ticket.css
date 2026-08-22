@@ -1,0 +1,150 @@
+.ticketpage {
+  display: grid;
+  gap: var(--space-4);
+  max-width: 32rem;
+  margin: 0 auto;
+}
+.ticketpage__note {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.ticket {
+  padding: 0;
+  overflow: hidden;
+}
+.ticket__top {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-5);
+}
+.ticket__eyebrow {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--cta);
+}
+.ticket__title {
+  font-family: var(--font-brand);
+  font-weight: 400;
+  font-size: var(--text-2xl);
+}
+.ticket__where {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+/* Perforation: a dashed rule with a notch bitten out of each edge */
+.ticket__rip {
+  position: relative;
+  height: 0;
+  border-top: 2px dashed var(--border-strong);
+}
+.ticket__rip span {
+  position: absolute;
+  top: -11px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+.ticket__rip span:first-child {
+  left: -11px;
+}
+.ticket__rip span:last-child {
+  right: -11px;
+}
+
+.ticket__bottom {
+  display: grid;
+  gap: var(--space-4);
+  justify-items: center;
+  padding: var(--space-5);
+  background: var(--surface-2);
+}
+.ticket__qr {
+  border-radius: var(--radius);
+  /* The code must stay high-contrast whatever the page theme is doing */
+  background: #ffffff;
+  padding: var(--space-2);
+}
+.ticket__qr--pending {
+  width: 220px;
+  height: 220px;
+  background: var(--surface);
+  animation: pulse 1.4s var(--ease) infinite;
+}
+.ticket__void {
+  padding: var(--space-4);
+  text-align: center;
+  color: var(--danger);
+  font-size: var(--text-sm);
+}
+.ticket__facts {
+  justify-content: center;
+  text-align: center;
+}
+.ticket__seat {
+  display: inline-grid;
+  margin-right: var(--space-2);
+}
+.ticket__seat small {
+  font-size: var(--text-xs);
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+/* ------------------------------------------------------------- verify */
+
+.verify {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: center;
+  text-align: center;
+  max-width: 26rem;
+  margin: var(--space-6) auto 0;
+  padding: var(--space-6) var(--space-5);
+  border-width: 2px;
+}
+.verify--good {
+  border-color: var(--success);
+  color: var(--success);
+}
+.verify--bad {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.verify__verdict {
+  font-size: var(--text-2xl);
+}
+.verify__detail {
+  color: var(--text);
+  font-size: var(--text-sm);
+}
+.verify__facts {
+  display: grid;
+  gap: var(--space-2);
+  width: 100%;
+  margin: var(--space-3) 0 0;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+  color: var(--text);
+}
+.verify__facts > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+  font-size: var(--text-sm);
+}
+.verify__facts dt {
+  color: var(--text-muted);
+}
+.verify__facts dd {
+  margin: 0;
+  font-weight: 500;
+  text-align: right;
+}

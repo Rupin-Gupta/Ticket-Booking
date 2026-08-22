@@ -202,7 +202,7 @@ model ShowSeat {
   holdExpiresAt  DateTime?
   offerExpiresAt DateTime?
 
-  bookingSeat BookingSeat?
+  bookingSeats BookingSeat[] // one per booking across time; at most one live
 
   @@unique([showId, seatId])
   @@index([showId, status])
@@ -238,13 +238,23 @@ enum BookingStatus {
 }
 
 model BookingSeat {
-  id             String   @id @default(uuid())
-  booking        Booking  @relation(fields: [bookingId], references: [id])
+  id             String    @id @default(uuid())
+  booking        Booking   @relation(fields: [bookingId], references: [id])
   bookingId      String
-  showSeat       ShowSeat @relation(fields: [showSeatId], references: [id])
-  showSeatId     String   @unique
+  showSeat       ShowSeat  @relation(fields: [showSeatId], references: [id])
+  showSeatId     String    // NOT @unique — see ADR-020
   priceAtBooking Decimal
+  releasedAt     DateTime? // set on cancellation; the row survives for history
+
+  @@unique([bookingId, showSeatId])
+  @@index([showSeatId])
 }
+
+// The seatbelt is a PARTIAL unique index Prisma cannot express, created by hand
+// in migration 20260822120000_booking_seat_release:
+//   CREATE UNIQUE INDEX "BookingSeat_showSeatId_live_key"
+//     ON "BookingSeat"("showSeatId") WHERE "releasedAt" IS NULL;
+// A plain @unique made a cancelled seat unsellable forever.
 
 model WaitlistEntry {
   id             String         @id @default(uuid())
@@ -347,6 +357,7 @@ the index.
 
 ## Current phase
 
-`Phase 4 — Booking, QR & email, not started. Phases 0-3 complete including the
-graded concurrency work: 20 parallel holds on one seat yield exactly one 201,
-stable over three runs. 35 tests green. Needs RESEND_API_KEY. See docs/CONTEXT.md.`
+`Phase 5 — Waitlist & time-limited offers (evaluation-critical), not started.
+Phases 0-4 complete: auth, venues, events, holds with proven concurrency,
+bookings with QR tickets emailed via a queued worker. 52 tests green.
+All accounts configured. Detail in docs/CONTEXT.md.`

@@ -11,6 +11,9 @@ import { LoginPage } from './pages/LoginPage.js';
 import { RegisterPage } from './pages/RegisterPage.js';
 import { AdminVenuesPage } from './pages/AdminVenuesPage.js';
 import { OrganiserPage } from './pages/OrganiserPage.js';
+import { BookingsPage } from './pages/BookingsPage.js';
+import { TicketPage } from './pages/TicketPage.js';
+import { VerifyPage } from './pages/VerifyPage.js';
 import './styles/base.css';
 
 const root = document.getElementById('root');
@@ -27,6 +30,9 @@ createRoot(root).render(
             <Route path="/events/:id" element={<EventDetailPage />} />
             {/* Public: browsing the seat map needs no account. Holding one does. */}
             <Route path="/shows/:id" element={<ShowPage />} />
+            {/* Where a scanned QR lands. Public by necessity — the person on
+                the door is not logged in. */}
+            <Route path="/verify/:token" element={<VerifyPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
 
@@ -49,12 +55,19 @@ createRoot(root).render(
               }
             />
 
-            {/* Phase 4 fills this in. Wired now so the redirect is proven. */}
             <Route
               path="/bookings"
               element={
                 <RequireAuth>
-                  <p className="prose">Your bookings will appear here from Phase 4.</p>
+                  <BookingsPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/bookings/:id"
+              element={
+                <RequireAuth>
+                  <TicketPage />
                 </RequireAuth>
               }
             />

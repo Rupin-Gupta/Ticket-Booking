@@ -8,6 +8,7 @@ import { authRoutes } from './modules/auth/routes.js';
 import { venueRoutes } from './modules/venues/routes.js';
 import { eventRoutes, showRoutes } from './modules/events/routes.js';
 import { holdRoutes, seatShowRoutes } from './modules/seats/routes.js';
+import { bookingRoutes, verifyRoutes } from './modules/bookings/routes.js';
 import { prisma } from './lib/prisma.js';
 
 /**
@@ -62,7 +63,9 @@ export function createApp() {
   // belong to their own module.
   api.use('/shows', seatShowRoutes);
   api.use('/holds', holdRoutes);
-  // Phase 4+ mounts the rest here: bookings, waitlist, organiser.
+  api.use('/bookings', bookingRoutes);
+  api.use('/verify', verifyRoutes);
+  // Phase 5+ mounts the rest here: waitlist, organiser.
   app.use('/api/v1', api);
 
   app.use(notFound);
