@@ -13,7 +13,8 @@
     "db:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
     "test": "node --import tsx --test \"tests/**/*.test.ts\"",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "verify:prod": "tsx scripts/verify-production.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.3.0",

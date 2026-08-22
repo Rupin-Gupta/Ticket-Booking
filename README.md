@@ -371,6 +371,25 @@ build runs `prisma migrate deploy`, so a deploy applies pending migrations.
 workspace would not resolve). [`vercel.json`](vercel.json) points the build at
 the workspace and handles SPA rewrites. Set `VITE_API_URL` to the Render URL.
 
+### Verifying the deployment
+
+```bash
+npm run verify:prod -w apps/api -- https://your-api.onrender.com
+```
+
+Checks health, that `NODE_ENV` is really production, that every service is
+configured and the database reachable, that CORS rejects a foreign origin, that
+the seat map still hides `heldByUserId` — and then **re-runs the twenty-way
+concurrency race against the live deployment**. That last one matters: on
+localhost the app, the test and Postgres share a machine, while in production the
+lock is held across a network, behind a connection pooler, on an instance that
+may have just cold-started.
+
+It creates its contenders directly in the database and mints their tokens
+locally rather than driving `/auth/register` — twenty signups from one IP are
+blocked by our own rate limiter long before they reach the seat, which is the
+limiter working. Clean up afterwards with `-- --cleanup`.
+
 **Then, in order:**
 
 1. Set `WEB_URL` on Render to the Vercel URL — it is the CORS allowlist, and the
