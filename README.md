@@ -8,9 +8,14 @@ every confirmed booking emails a QR code ticket.
 **Live app:** https://ticket-booking-zeta-azure.vercel.app · **API:** https://ticket-booking-api-sisp.onrender.com/health
 
 ```
-79 tests passing · TypeScript strict across three workspaces
-20 parallel holds on one seat, against the live deployment: 1 x 201, 19 x 409, 0 errors
+120 tests passing · Python 3.12+ · FastAPI · SQLAlchemy 2.0
+20 parallel holds on one seat, over real TCP: 1 x 201, 19 x 409, 0 errors
 ```
+
+> **The API was ported from TypeScript to Python** on 2026-08-23. The frontend
+> stays TypeScript — it is React in a browser, which is a platform constraint
+> rather than a preference. The retired Node implementation is in git history up
+> to commit `6c7dfd4` for anyone who wants to diff behaviour.
 
 > First load may take ~50s — Render's free tier spins down when idle. A daily
 > keep-alive keeps it warm; give it a moment if it has been quiet.
@@ -50,30 +55,39 @@ admin accounts come from the seed script.
 
 ## Stack
 
-| Layer    | Choice                                       | Why                                                                          |
-| -------- | -------------------------------------------- | ---------------------------------------------------------------------------- |
-| API      | Node + TypeScript + Express 5                | Express 5 forwards rejected promises to the error handler on its own         |
-| Frontend | React 19 + Vite, plain CSS custom properties | Tokens give a seat that is `--seat-held` in both themes with no build config |
-| Database | PostgreSQL (Supabase) + Prisma               | `SELECT … FOR UPDATE` and `FOR UPDATE SKIP LOCKED` are the whole design      |
-| Queue    | Redis (Upstash) + BullMQ                     | Email only — the sweeper runs on Postgres ([ADR-018](docs/DECISIONS.md))     |
-| Realtime | Socket.IO + Redis adapter                    | Rooms keyed `show:{id}`; the adapter is what makes multi-instance work       |
-| Auth     | JWT (HS256, pinned) + Argon2id               | OWASP's first choice for password storage                                    |
+| Layer    | Choice                                           | Why                                                                                        |
+| -------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| API      | Python 3.12+ · FastAPI · Pydantic v2             | OpenAPI comes free, and it is what generates the frontend's types                          |
+| Frontend | React 19 + Vite, plain CSS custom properties     | Tokens give a seat that is `--seat-held` in both themes with no build config               |
+| Database | PostgreSQL (Supabase) · SQLAlchemy 2.0 + Alembic | `SELECT … FOR UPDATE` and `FOR UPDATE SKIP LOCKED` are the whole design                    |
+| Driver   | **psycopg3**, never asyncpg                      | asyncpg leaks prepared statements through Supabase's pooler ([ADR-027](docs/DECISIONS.md)) |
+| Queue    | Redis (Upstash) + ARQ                            | Email only — the sweeper runs on Postgres ([ADR-018](docs/DECISIONS.md))                   |
+| Realtime | python-socketio + Redis manager                  | Protocol rev 5, so the existing `socket.io-client` needs no change                         |
+| Auth     | JWT (HS256, pinned) + Argon2id                   | OWASP's first choice for password storage                                                  |
 
-Monorepo via npm workspaces: `apps/api`, `apps/web`, `packages/shared`.
+`apps/api` is a Python package (`pyproject.toml`); `apps/web` and
+`packages/shared` are npm workspaces.
 
 ---
 
 ## Quick start
 
-Requires **Node 20.12+** (the API uses Node's native `.env` loading).
+Requires **Python 3.12+** and **Node 20.12+** (Node for the frontend only).
 
 ```bash
 git clone https://github.com/Rupin-Gupta/Ticket-Booking.git
 cd Ticket-Booking
-npm install                              # installs all workspaces, generates the Prisma client
-cp apps/api/.env.example apps/api/.env   # fill it in — see below
-npm run db:migrate -- --name init        # creates the schema
-npm run db:seed -w apps/api              # demo venue, event, shows and accounts
+
+# --- API
+cd apps/api
+python3 -m venv .venv && ./.venv/bin/pip install -e ".[dev]"
+cp .env.example .env                     # fill it in — see below
+./.venv/bin/alembic upgrade head         # creates the schema
+./.venv/bin/python -m ticket_api.seed    # demo venue, event, shows and accounts
+cd ../..
+
+# --- frontend + both processes
+npm install
 npm run dev                              # API on :4000, web on :5173
 ```
 
@@ -113,12 +127,18 @@ Full annotated list in [`apps/api/.env.example`](apps/api/.env.example).
 | Variable       | Which string                      | Port   | Used by                                               |
 | -------------- | --------------------------------- | ------ | ----------------------------------------------------- |
 | `DATABASE_URL` | **Transaction** pooler            | `6543` | The running app                                       |
-| `DIRECT_URL`   | **Session** pooler                | `5432` | `prisma migrate`                                      |
+| `DIRECT_URL`   | **Session** pooler                | `5432` | `alembic upgrade`                                     |
 | —              | ~~Direct~~ `db.<ref>.supabase.co` | —      | **Never** — IPv6-only; works locally, fails on Render |
 
-`DATABASE_URL` must end in `?pgbouncer=true`: the transaction pooler cannot
-support prepared statements, which Prisma uses by default. Migrations need the
-session pooler because they take advisory locks, which are session state.
+The transaction pooler is pgbouncer, and pgbouncer cannot carry a prepared
+statement across pooled connections — it is prepared on one backend and executed
+on another that has never heard of it. That is why the driver is **psycopg3 with
+`prepare_threshold=None`** and never asyncpg, which leaks prepared statements
+through that pooler even with its own cache disabled ([ADR-027](docs/DECISIONS.md)).
+
+A trailing `?pgbouncer=true` was a Prisma-only flag and is now stripped
+automatically, so an old `.env` keeps working. Migrations need the **session**
+pooler because Alembic takes an advisory lock, which is session state.
 
 **Percent-encode special characters in the password** — these strings are URLs:
 `@` → `%40`, `#` → `%23`, `/` → `%2F`, `?` → `%3F`.
@@ -200,12 +220,11 @@ sweeper to guess which kind of expiry it found.
 
 The bug being defended against is check-then-write:
 
-```ts
-const seat = await prisma.showSeat.findUnique({ where: { id } });
-// ← another request interleaves here
-if (seat.status === 'AVAILABLE') {
-  /* both write HELD, second wins silently */
-}
+```python
+seat = await session.get(ShowSeat, seat_id)
+#  ← another request interleaves here
+if seat.status is SeatStatus.AVAILABLE:
+    ...  # both write HELD, the second wins silently, two customers own one seat
 ```
 
 `POST /shows/:id/holds` runs **one transaction** that opens by locking:
@@ -229,8 +248,11 @@ Three details are load-bearing:
 - **`FOR UPDATE OF ss`** — locks only `ShowSeat`. A bare `FOR UPDATE` would also
   lock the joined `Seat` rows and serialise unrelated shows in the same venue.
 - **The query locks _and_ reads** — so the lock is held for two round trips, not
-  four. With four, twenty contenders exceeded Prisma's 5s transaction timeout
-  and seven of twenty returned 500 instead of 409.
+  four. With four, twenty contenders exceeded the transaction timeout and seven
+  of twenty returned 500 instead of 409. Prisma's client-side `maxWait`/`timeout`
+  are now server-side `lock_timeout` and `statement_timeout` via `set_config`,
+  which is strictly stronger: a client-side deadline can be missed by a wedged
+  client, a server-side one cannot.
 
 Holds are all-or-nothing: a partial hold is worse UX than a clean rejection and
 leaks seats when the cart is abandoned.
@@ -281,7 +303,14 @@ stored column would need renumbering everyone behind on every departure
 
 ## Database schema
 
-Full schema: [`apps/api/prisma/schema.prisma`](apps/api/prisma/schema.prisma).
+Full schema: [`apps/api/src/ticket_api/models.py`](apps/api/src/ticket_api/models.py).
+
+The table and column names are Prisma's, deliberately kept: quoted PascalCase
+tables, camelCase columns, native Postgres enums. Renaming them during the port
+would have been a second variable in a rewrite whose whole value was provable
+equivalence, and the hand-written partial index below is already written against
+these names. The cost is one explicit `mapped_column("holdExpiresAt")` per
+attribute — mechanical, and paid once.
 
 ```
 User ──< Event ──< SeatCategory ──┐
@@ -292,24 +321,25 @@ User ──< Event ──< SeatCategory ──┐
   └──< WaitlistEntry
 ```
 
-| Model           | Carries                                                                                     | Key constraint                                            |
-| --------------- | ------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| `Seat`          | Section, row, number, `posX`/`posY` — geometry, written once per venue                      | `@@unique([venueId, section, row, number])`               |
-| `SeatCategory`  | Name, price, **`sections[]`** — which venue sections this band covers                       | `@@unique([eventId, name])`                               |
-| `ShowSeat`      | `status`, `heldByUserId`, `holdExpiresAt`, `offerExpiresAt` — the live row everything locks | `@@unique([showId, seatId])`, `@@index([showId, status])` |
-| `Booking`       | `reference` (human-facing), `qrToken` (32 random bytes)                                     | both `@unique`                                            |
-| `BookingSeat`   | `priceAtBooking`, `releasedAt`                                                              | partial unique on `showSeatId WHERE releasedAt IS NULL`   |
-| `WaitlistEntry` | `joinedAt`, `offerToken`, `offerExpiresAt`                                                  | `@@index([showId, categoryId, status, joinedAt])`         |
+| Model           | Carries                                                                                     | Key constraint                                          |
+| --------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `Seat`          | Section, row, number, `posX`/`posY` — geometry, written once per venue                      | unique `(venueId, section, row, number)`                |
+| `SeatCategory`  | Name, price, **`sections[]`** — which venue sections this band covers                       | unique `(eventId, name)`                                |
+| `ShowSeat`      | `status`, `heldByUserId`, `holdExpiresAt`, `offerExpiresAt` — the live row everything locks | unique `(showId, seatId)`, index `(showId, status)`     |
+| `Booking`       | `reference` (human-facing), `qrToken` (32 random bytes)                                     | both unique                                             |
+| `BookingSeat`   | `priceAtBooking`, `releasedAt`                                                              | partial unique on `showSeatId WHERE releasedAt IS NULL` |
+| `WaitlistEntry` | `joinedAt`, `offerToken`, `offerExpiresAt`                                                  | index `(showId, categoryId, status, joinedAt)`          |
 
 Two details worth calling out:
 
 - **`priceAtBooking` is a snapshot.** Revenue is summed from it, never from the
   category's current price, so re-pricing never rewrites past bookings.
-- **The `BookingSeat` seatbelt is a _partial_ unique index**, created by hand in
-  `20260822120000_booking_seat_release`. A plain `@unique` made a cancelled seat
-  unsellable forever, because the row survives cancellation for history. Prisma
-  cannot express a partial index, so a future `migrate dev` may report it as
-  drift — see [docs/DEBUGGING.md](docs/DEBUGGING.md).
+- **The `BookingSeat` seatbelt is a _partial_ unique index**, written by hand in
+  the baseline migration. A plain unique constraint made a cancelled seat
+  unsellable forever, because the row survives cancellation for history. Neither
+  Prisma nor SQLAlchemy's declarative layer can express a partial index, so a
+  future `alembic revision --autogenerate` may propose dropping it — that is
+  drift, not an improvement. See [docs/DEBUGGING.md](docs/DEBUGGING.md).
 
 ---
 
@@ -343,33 +373,46 @@ a seat is held, never _who_ holds it.
 ## Tests
 
 ```bash
-NODE_ENV=test npm test -w apps/api      # 79 tests
-npm run typecheck                       # all three workspaces
+npm run test:db:up                      # throwaway Postgres on :5433
+npm run db:deploy:test                  # apply migrations to it
+npm test                                # 120 tests, ~9s
+npm run lint:api                        # ruff check + format --check
+npm run typecheck                       # the two TypeScript workspaces
 ```
 
-They run against real Postgres over the real HTTP stack — SQLite would serialise
-writes for free and hide the very races being tested. Each file tags its
-fixtures with a random run id and cleans up after itself.
+**Tests refuse to run against the production database.** `active_database_url()`
+requires `DATABASE_URL_TEST` under `NODE_ENV=test` and will not fall back — a
+suite that quietly writes to production is worse than one that will not start.
+The email queue is guarded the same way, so tests never enqueue into the live
+Upstash instance either.
+
+They run against real Postgres over the real HTTP stack. SQLite would serialise
+writes for free and hide the very races being tested.
 
 The two that matter most:
 
-- **`tests/concurrency/holds.test.ts`** — twenty parallel holds at one seat,
+- **`tests/concurrency/test_holds.py`** — twenty parallel holds at one seat,
   asserting exactly one `201`, nineteen `409`s, and one `HELD` row in the
-  database. Also covers overlapping seat pairs requested in opposite orders,
-  which is the deadlock case.
-- **`tests/concurrency/waitlist.test.ts`** — drives one seat through three
-  customers to general sale purely by letting each offer lapse, and asserts the
-  offer always goes to the earliest `joinedAt` and to nobody else.
+  database. Runs against a **real uvicorn listener over TCP**, not httpx's
+  in-process transport, which can serialise every request through one task and
+  would pass even if the lock did nothing. Also covers overlapping seat pairs
+  requested in opposite orders, which is the deadlock case.
+- **`tests/concurrency/test_waitlist.py`** — several seats freed at once must go
+  to distinct customers, and two people racing to accept one offer must produce
+  exactly one booking.
 
 ---
 
 ## Deployment
 
-**Database** — Supabase, already migrated by `npm run db:migrate`.
+**Database** — Supabase, migrated by `alembic upgrade head`.
 
 **API → Render.** [`render.yaml`](render.yaml) is a Blueprint: Render → New →
 Blueprint → point at this repo. Set the secrets it marks `sync: false`. The
-build runs `prisma migrate deploy`, so a deploy applies pending migrations.
+build runs `alembic upgrade head`, so a deploy applies pending migrations.
+Runtime is `python`, `rootDir` is `apps/api`, and it starts one uvicorn worker —
+one deliberately, because Socket.IO connections are stateful and a second worker
+without the Redis manager wired would silently drop half of every broadcast.
 
 **Web → Vercel.** Keep Root Directory as the repo **root** (not `apps/web` — the
 workspace would not resolve). [`vercel.json`](vercel.json) points the build at
@@ -378,7 +421,7 @@ the workspace and handles SPA rewrites. Set `VITE_API_URL` to the Render URL.
 ### Verifying the deployment
 
 ```bash
-npm run verify:prod -w apps/api -- https://your-api.onrender.com
+cd apps/api && ./.venv/bin/python scripts/verify_production.py https://your-api.onrender.com
 ```
 
 Checks health, that `NODE_ENV` is really production, that every service is

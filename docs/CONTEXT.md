@@ -10,22 +10,85 @@ an entry here costs the next one twenty minutes of rediscovery.
 
 ## Current state
 
-|                 |                                                                                                                     |
-| --------------- | ------------------------------------------------------------------------------------------------------------------- |
-| **Phase**       | **2 — COMPLETE.** Phase 3 (seat map, holds, concurrency) is next — evaluation-critical.                             |
-| **Runnable?**   | Yes — the entire brief works, live. Two browsers on one show now update each other without refreshing.              |
-| **Repo**        | Local git initialised. Remote `https://github.com/Rupin-Gupta/Ticket-Booking.git` — **not pushed yet, user pushes** |
-| **Blocked on**  | Nothing. All three accounts are configured and working.                                                             |
-| **Next action** | Optional Phase 9 hardening, or new differentiating features. Known gap: tests share the production database.        |
+|                 |                                                                                                                             |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| **Phase**       | **Python port — COMPLETE.** The API is FastAPI; `apps/api` no longer contains TypeScript.                                   |
+| **Runnable?**   | Yes, locally. 120 tests green. The hosted deployment is intentionally offline for the duration of the port.                 |
+| **Repo**        | Local git. Remote `https://github.com/Rupin-Gupta/Ticket-Booking.git` — **not pushed, the owner pushes**                    |
+| **Blocked on**  | Nothing technical. Redeploying needs the owner to push and re-import the Render blueprint (runtime changed node -> python). |
+| **Next action** | Redeploy and re-run `scripts/verify_production.py`. Then re-plan milestone 0/1 against Python — the old plan is superseded. |
 
-Demo logins (`npm run db:seed -w apps/api`), all `password123`:
-`admin@ticket.dev`, `organiser@ticket.dev`, `customer@ticket.dev`,
-`customer2@ticket.dev`. The login screen lists them as one-click buttons.
-Run `npm test -w apps/api` for the auth suite.
+**Everything below this line predates the port.** It is kept because the
+reasoning still holds — the locking discipline, the waitlist ordering, the
+partial index, the ADRs — but every command, filename and code sample in those
+entries refers to the retired Node implementation. It is in git history up to
+commit `6c7dfd4`.
 
-`/health` reports which of database / redis / auth / email are configured and
-round-trips a `SELECT 1`, and the web placeholder renders that as a checklist —
-so the remaining setup is visible without reading code.
+Demo logins (`cd apps/api && ./.venv/bin/python -m ticket_api.seed`), all
+`password123`: `admin@ticket.dev`, `organiser@ticket.dev`, `customer@ticket.dev`,
+`customer2@ticket.dev`.
+
+Tests need the throwaway database first — `npm run test:db:up`, then
+`npm run db:deploy:test`, then `npm test`. They **refuse** to run against the
+production database rather than falling back to it.
+
+---
+
+## 2026-08-23 — Session 13: TypeScript to Python
+
+The owner asked why the codebase was TypeScript when they work in Python. It was
+my call, not theirs: no project CLAUDE.md existed when the first session started,
+I wrote one during the architecture phase, and I recorded the stack under a
+heading reading "decided — do not change without asking". They never saw a
+language decision point. Recorded in memory so it does not repeat.
+
+They chose a full port: FastAPI, strict 1:1, existing tests as the specification,
+site offline for the duration.
+
+**Order of work, and why**
+
+The pooler risk was spiked _first_, before any application code. asyncpg is the
+obvious async default and is wrong here — supabase/supabase#39227 is open and
+documents it leaking prepared statements through Supabase's transaction pooler,
+failing above ~100 concurrent requests, which is exactly the graded test's shape.
+psycopg3 with `prepare_threshold=None` was raced at 20, 100 and 250 contenders
+for one seat row: one winner, zero errors each time. ADR-027.
+
+Then bottom-up in verifiable slices, each with its own end-to-end check against a
+real database before moving on: config and models, auth, seats (the graded
+module), venues and events, bookings and waitlist, organiser and realtime.
+
+**What the tests caught that the smoke scripts had not**
+
+- `Decimal("NaN")` parses, and the _comparison_ raises — a 500 where the
+  TypeScript returned 400.
+- The models declared no composite constraints at all. Invisible against the
+  live database, which already had them; a fresh test database would have been
+  materially weaker than production.
+
+**Three assertions of mine that were wrong rather than the code**
+
+Worth recording because the instinct each time was to "fix" working code:
+`"450".rstrip("0")` is `"45"`, so a price assertion failed against correct
+output; `decimal.js` (which _is_ `Prisma.Decimal`) really does render `250.50` as
+`"250.5"`, verified by running it; and a reused offer token returns 404, not 410,
+because accepting clears the token and the lookup finds no row — identical to the
+TypeScript, which had the same WHERE clause.
+
+**Standing hazard finally closed**
+
+Tests used to write into the database serving the live site. Building config from
+scratch made it free to fix properly: `active_database_url()` refuses to fall
+back under `NODE_ENV=test`, `docker-compose.yml` supplies a throwaway Postgres,
+and the same guard now covers Redis after the booking tests were found enqueueing
+real jobs into production Upstash. ADR-030.
+
+**Numbers:** 5,400 lines of Python replacing 3,400 of TypeScript; 120 tests
+(from 79) in ~9s; the 20-way race green over real TCP.
+
+**Not done:** `packages/shared` still hand-maintains types the OpenAPI schema
+could now generate. Deliberately left — the frontend was out of scope and there
+was no test to catch a mistake there.
 
 ---
 

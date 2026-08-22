@@ -38,7 +38,7 @@ somebody else's page.
 YAML supports comments, so the reasoning is inline there. The two worth
 repeating:
 
-- The build runs `prisma migrate deploy`, so deploying applies pending
+- The build runs `alembic upgrade head`, so deploying applies pending
   migrations. That is the non-interactive form and it uses `DIRECT_URL`, which
   is why both connection strings are required.
 - `MAIL_REDIRECT_TO` is deliberately absent. It is ignored under

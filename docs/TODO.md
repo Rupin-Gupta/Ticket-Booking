@@ -247,7 +247,7 @@ device that never ran the project.
 
 - [ ] Rich seed script with a realistic demo show
 - [ ] Dockerfile + docker-compose for one-command local run
-- [ ] Graceful shutdown (drain HTTP, close BullMQ workers, disconnect Prisma)
+- [x] Graceful shutdown — FastAPI lifespan drains the sweeper and disposes the pool
 - [ ] Structured logging with request IDs
 - [ ] GitHub Actions CI running both test suites
 - [ ] Load test on the hold endpoint
@@ -323,3 +323,38 @@ Specs: [venue capabilities and booking flow](superpowers/specs/2026-08-23-venue-
 - [ ] Both test suites green before every phase close
 - [ ] `docs/CONTEXT.md` updated at the end of every session
 - [ ] Every new user rule appended to `docs/RULES.md`
+
+---
+
+## Python port — DONE (2026-08-23)
+
+The API was rewritten from TypeScript to Python at the owner's request. Strict
+1:1: the existing tests were the specification and no behaviour changed until
+they all passed.
+
+- [x] Spike psycopg3 through Supabase's pooler before writing anything — 20, 100
+      and 250 contenders, one winner each (ADR-027)
+- [x] Config, SQLAlchemy models mapped onto the existing schema, Alembic baseline
+- [x] Security: Argon2id with matching cost parameters, HS256 pinned on verify
+- [x] Every module: auth, venues, events, seats, bookings, waitlist, organiser
+- [x] ARQ email queue, interval sweeper, python-socketio realtime
+- [x] 120 tests (from 79), including the 20-way race over real TCP
+- [x] Test database split — refuses to fall back to production (ADR-030)
+- [x] Seed script and production verifier ported
+- [x] `apps/api-py` -> `apps/api`; TypeScript removed; render.yaml on the python
+      runtime; README, ADRs and DEBUGGING updated
+
+**Still open after the port**
+
+- [ ] Redeploy — needs the owner to push, then re-import the Render blueprint
+      (the runtime changed from node to python), then re-run
+      `scripts/verify_production.py` against the live URL
+- [ ] Generate `packages/shared` from FastAPI's OpenAPI schema instead of
+      hand-maintaining it. Now possible and strictly better; deliberately left
+      out of the port because the frontend was out of scope and no test would
+      have caught a mistake there.
+- [ ] **Milestone 0/1 must be re-planned.** The committed plan
+      (`docs/superpowers/plans/2026-08-23-venue-capabilities-and-booking-flow.md`)
+      is TypeScript task-by-task and is superseded. The _design_ it implements
+      (venue capabilities, no double-booking, three-page flow, two-clock TTL)
+      still stands — only the plan needs rewriting.
