@@ -176,9 +176,14 @@ function EventEditor({ event, onChanged }: { event: OwnEvent; onChanged: () => v
       <Card className="pad">
         <div className="manage__rowhead">
           <h2 className="manage__h2">{event.title}</h2>
-          <Link to={`/events/${event.id}`} className="btn btn--quiet">
-            View public page
-          </Link>
+          <span className="manage__links">
+            <Link to={`/manage/${event.id}`} className="btn btn--ghost">
+              Sales &amp; revenue
+            </Link>
+            <Link to={`/events/${event.id}`} className="btn btn--quiet">
+              Public page
+            </Link>
+          </span>
         </div>
 
         <h3 className="manage__h3">Pricing</h3>

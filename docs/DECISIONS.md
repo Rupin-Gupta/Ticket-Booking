@@ -562,3 +562,29 @@ per-user rooms. Reconsider before adding any such event.
 
 _The cap exists_ because one socket has no business watching hundreds of shows,
 and an unbounded join loop is a cheap way to consume server memory.
+
+---
+
+## ADR-026 — Revenue is summed from `priceAtBooking`, never the category price
+
+**Accepted** · 2026-08-22
+
+`GET /organiser/events/:id/summary` sums `BookingSeat.priceAtBooking` for
+bookings whose status is `CONFIRMED`.
+
+_Why not the category's current price:_ the two are different numbers the
+moment an organiser re-prices anything, and only one of them is what the
+customer paid. A dashboard that recalculated from the current price would
+rewrite last month's revenue every time a price changed. Tested directly: the
+suite re-prices Premium to 999 and asserts the reported revenue does not move.
+
+_Why cancelled bookings are excluded by booking **status**, not by
+`releasedAt`:_ status is the authoritative record of whether the money was
+kept. `releasedAt` exists to free the seat, which is a related but separate
+fact — and the `BookingSeat` row deliberately survives cancellation, so
+filtering on row existence would count cancelled sales as revenue.
+
+_Aggregated in JS, not SQL:_ Prisma cannot group by a relation's column, and an
+event has hundreds of seats rather than millions. The ceiling is named in the
+code; a raw `GROUP BY` is the upgrade if a venue ever gets large enough to
+notice.

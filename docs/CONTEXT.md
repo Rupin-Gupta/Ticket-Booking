@@ -16,7 +16,7 @@ an entry here costs the next one twenty minutes of rediscovery.
 | **Runnable?**   | Yes — the entire brief works, live. Two browsers on one show now update each other without refreshing.              |
 | **Repo**        | Local git initialised. Remote `https://github.com/Rupin-Gupta/Ticket-Booking.git` — **not pushed yet, user pushes** |
 | **Blocked on**  | Nothing. All three accounts are configured and working.                                                             |
-| **Next action** | Phase 7: `GET /organiser/events/:id/summary` with revenue, the dashboard, and a polish pass.                        |
+| **Next action** | Phase 8: deploy to Render + Vercel, the keep-alive cron, README, `SYSTEM_DESIGN.md`, zip.                           |
 
 Demo logins (`npm run db:seed -w apps/api`), all `password123`:
 `admin@ticket.dev`, `organiser@ticket.dev`, `customer@ticket.dev`,
@@ -26,6 +26,48 @@ Run `npm test -w apps/api` for the auth suite.
 `/health` reports which of database / redis / auth / email are configured and
 round-trips a `SELECT 1`, and the web placeholder renders that as a checklist —
 so the remaining setup is visible without reading code.
+
+---
+
+## 2026-08-22 — Session 11: Phase 7, organiser dashboard
+
+**Revenue comes from `priceAtBooking`, never the category's current price
+(ADR-026).** They are different numbers the moment anything is re-priced, and
+only one is what the customer paid. The test re-prices Premium to 999 and
+asserts the reported revenue does not move.
+
+Cancelled bookings are excluded by **booking status**, not by `releasedAt`.
+Status is the record of whether the money was kept; `releasedAt` exists to free
+the seat. The `BookingSeat` row survives cancellation on purpose, so filtering
+on row existence would count cancelled sales as revenue.
+
+**Reconciliation is asserted three ways** — against the raw `BookingSeat` rows,
+and by requiring the per-category and per-show totals each to sum to the
+headline figure. Prices in the fixture are deliberately awkward (199.99 × 2 +
+49.50) because that is exactly where float arithmetic drifts; Decimal is used
+end to end.
+
+**Dashboard.** Summary row first — a dashboard is scanned, not read — then
+per-category bars and a per-show table. Both the number and the bar are always
+present, so neither carries the meaning alone; the "waiting" tile takes a left
+stripe rather than a tint so its state survives greyscale. Wide table scrolls
+in its own container, so the page body never scrolls sideways on a phone.
+
+Applied the Phase 1 design system rather than regenerating it — a second
+`--design-system` run would have produced a different palette and quietly split
+the product in two.
+
+**Verified**
+
+79/79 tests. Typecheck clean. Web builds (355 kB / 112 kB gzipped). Live against
+seeded data: revenue 12,150 across 27 of 200 seats, reconciling exactly across
+categories, shows and the headline; a customer got 403, an anonymous request 401.
+
+**Next session starts with**
+
+Phase 8 — the last one. Render + Vercel deploy, the daily keep-alive cron that
+stops Supabase pausing, README completion, `SYSTEM_DESIGN.md` (800 words), and
+re-running the concurrency test against production.
 
 ---
 
