@@ -260,14 +260,22 @@ Specs: [venue capabilities and booking flow](superpowers/specs/2026-08-23-venue-
 · [seat signals and accessibility](superpowers/specs/2026-08-22-seat-signals-and-accessibility-design.md)
 · research and prior art: [FEATURE_BACKLOG.md](FEATURE_BACKLOG.md)
 
-### Milestone 0 — prerequisite
+### Milestone 0 — prerequisite ✅ DONE (2026-08-23, via the Python port)
 
-- [ ] **Separate test database.** Tests currently write into the database
-      serving the live site. Second free Supabase project, `DATABASE_URL_TEST`,
-      and a test script that **refuses to run** without it rather than silently
-      falling back to production.
+- [x] **Separate test database.** Delivered differently from the plan: a
+      throwaway Postgres container (`docker compose up -d db`) rather than a
+      second Supabase project — no network latency, no free-tier quota, and
+      `down -v` guarantees a clean slate. `active_database_url()` refuses to
+      fall back under `NODE_ENV=test`, and the same guard now covers Redis.
+      ADR-030.
 
 ### Milestone 1 — venue capabilities, scheduling, booking flow
+
+> **Status: 0 of 7 done.** The implementation plan for this
+> (`superpowers/plans/2026-08-23-venue-capabilities-and-booking-flow.md`) was
+> written against TypeScript and is superseded by the port. The **spec** it
+> implements still stands — only the plan needs rewriting against FastAPI and
+> SQLAlchemy.
 
 - [ ] `Venue.stageLayout` (END_STAGE / CENTRE_STAGE) + radial seat generation
 - [ ] `Venue.allowedEventTypes` + `turnaroundMinutes`; centre-stage cannot allow MOVIE
@@ -290,7 +298,9 @@ Specs: [venue capabilities and booking flow](superpowers/specs/2026-08-23-venue-
       rendering the result live. Turns the strongest claim into a demonstration
 - [ ] **Check-in + scanner** — `checkedInAt`; a second scan says "already admitted
       at 19:42". Today a QR verifies infinitely, which is a real gap
-- [ ] **OpenAPI spec + browsable docs** generated from the existing Zod schemas
+- [x] **OpenAPI spec + browsable docs** — free from FastAPI. 27 paths at
+      `/openapi.json`, Swagger UI at `/docs`. This was going to be generated from
+      the Zod schemas by hand; the port made it fall out of Pydantic instead.
 
 ### Milestone 4 — seat map hierarchy
 
