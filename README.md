@@ -5,9 +5,9 @@ visual map, held seats auto-release when checkout is abandoned, sold-out shows
 run a FIFO waitlist that auto-assigns freed seats via time-limited offers, and
 every confirmed booking emails a QR code ticket.
 
-> **Status:** Phase 0 — scaffolding done. `npm install && npm run dev` runs both
-> apps today; the database is not wired yet (see [Accounts](#accounts)). Live
-> task list in [docs/TODO.md](docs/TODO.md), current state in
+> **Status:** Phase 0 complete — monorepo runs, Supabase connected, schema
+> migrated. Phase 1 (auth) is next. Live task list in
+> [docs/TODO.md](docs/TODO.md), current state in
 > [docs/CONTEXT.md](docs/CONTEXT.md).
 
 ## Documentation map
@@ -66,6 +66,11 @@ Three free-tier services. None expire, but see the Supabase warning below:
 `DATABASE_URL` must end in `?pgbouncer=true` — the transaction pooler cannot do
 prepared statements, and Prisma uses them by default.
 
+**Percent-encode special characters in the database password.** These strings
+are URLs: `@` → `%40`, `#` → `%23`, `/` → `%2F`, `?` → `%3F`. An unencoded `@`
+makes the parser read the wrong character as the host delimiter. Encode the
+password only, never the `@` that separates credentials from the host.
+
 > ⚠️ **Supabase pauses a free project after 7 days with no database activity,
 > and restoring it is manual.** `/health` runs a `SELECT 1`, so a daily ping of
 > the deployed API keeps it alive. That cron is set up in Phase 8 — before
@@ -76,7 +81,7 @@ Also generate a signing secret: `openssl rand -base64 48` → `JWT_SECRET`.
 ### Once the database is up
 
 ```bash
-npm run db:migrate     # creates the schema on Supabase (uses DIRECT_URL)
+npm run db:migrate -- --name init   # creates the schema (uses DIRECT_URL)
 npm run db:studio      # optional: browse the data
 ```
 

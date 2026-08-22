@@ -68,6 +68,32 @@ connection string works locally.
 `aws-0-<region>.pooler.supabase.com` host — 6543 for the app, 5432 for
 migrations.
 
+### Database password containing `@`, `#`, `/` or `?`
+
+**Symptom:** connection refused, or the URL parses with a truncated host — a
+password with `@` in it makes the parser treat the wrong `@` as the host
+delimiter.
+**Cause:** connection strings are URLs. Special characters in the password have
+to be percent-encoded.
+**Fix:** `@` → `%40`, `#` → `%23`, `/` → `%2F`, `?` → `%3F`. Encode only the
+password, never the `@` that separates credentials from the host. `env.ts`
+validates all three connection strings with `z.string().url()`, so a broken one
+now fails loudly at boot instead of at first query.
+
+### `prisma migrate` sits there forever with no output
+
+**Symptom:** `npm run db:migrate` produces nothing and never returns. Looks
+exactly like the pooler hang above, and is not.
+**Cause:** `prisma migrate dev` prompts interactively for a migration name.
+With no TTY the prompt is invisible and it waits forever.
+**Also:** `npm run db:migrate -- --name init` from the repo root used to be
+swallowed by the outer `npm run` before it reached Prisma. The root script now
+ends in `--` so arguments forward properly.
+**Fix:** always pass a name — `npm run db:migrate -- --name add_something`.
+Before blaming the pooler, check whether the connection line printed: if it
+says `Datasource "db": PostgreSQL database ... at ...:5432`, the connection
+succeeded and something else is blocking.
+
 ### `prepared statement "s0" already exists`
 
 **Symptom:** intermittent Prisma errors under any real concurrency, only in
