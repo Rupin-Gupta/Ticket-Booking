@@ -12,15 +12,85 @@ an entry here costs the next one twenty minutes of rediscovery.
 
 |                 |                                                                                                                     |
 | --------------- | ------------------------------------------------------------------------------------------------------------------- |
-| **Phase**       | **0 — COMPLETE.** Phase 1 (auth) is next.                                                                           |
-| **Runnable?**   | Yes, with a live database. `npm run dev` → API on :4000, web on :5173, Supabase connected.                          |
+| **Phase**       | **1 — COMPLETE.** Phase 2 (venues, events, shows) is next.                                                          |
+| **Runnable?**   | Yes. `npm run dev` → sign up, log in, log out, protected routes, dark/light.                                        |
 | **Repo**        | Local git initialised. Remote `https://github.com/Rupin-Gupta/Ticket-Booking.git` — **not pushed yet, user pushes** |
-| **Blocked on**  | Nothing. Upstash needed by Phase 3, Resend by Phase 4 — neither blocks Phase 1 or 2.                                |
-| **Next action** | Phase 1: Argon2id, JWT + role middleware, register/login/me, seed script.                                           |
+| **Blocked on**  | Nothing. Upstash needed by Phase 3, Resend by Phase 4.                                                              |
+| **Next action** | Phase 2: admin venue + seat layout, organiser events and pricing, `instantiateShowSeats()`.                         |
+
+Demo logins (`npm run db:seed -w apps/api`), all `password123`:
+`admin@ticket.dev`, `organiser@ticket.dev`, `customer@ticket.dev`,
+`customer2@ticket.dev`. The login screen lists them as one-click buttons.
+Run `npm test -w apps/api` for the auth suite.
 
 `/health` reports which of database / redis / auth / email are configured and
 round-trips a `SELECT 1`, and the web placeholder renders that as a checklist —
 so the remaining setup is visible without reading code.
+
+---
+
+## 2026-08-22 — Session 5: Phase 1, auth and the design system
+
+**Backend**
+
+Auth module (routes / service / schema), plus the primitives everything later
+reuses: `lib/password.ts`, `lib/jwt.ts`, `middleware/auth.ts`,
+`middleware/rateLimit.ts`. Seed script for admin, organiser and two customers.
+
+The decisions that matter, since this is the layer the rest of the API trusts:
+
+- The register schema has **no `role` field at all**. Zod strips unknown keys,
+  so a body carrying `"role":"ADMIN"` never reaches the service. Not parsing it
+  is a stronger guarantee than parsing and ignoring it.
+- Login returns one identical code and message for unknown email and wrong
+  password, and `verifyPassword()` hashes against a decoy when no user is found
+  so both paths cost the same time. Matching text with mismatched timing is
+  still an enumeration oracle.
+- HS256 pinned on sign and verify. Verify is the half that matters.
+- Duplicate email caught via the unique index (P2002), not a findFirst first —
+  check-then-insert races two simultaneous signups.
+- Passwords capped at 128 bytes; Argon2 on a megabyte of input is a real DoS.
+- Rate limits skip under `NODE_ENV=test`, or the Phase 3 concurrency suite
+  would be throttled by our own defence.
+
+**Frontend — design system, built with the `ui-ux-pro-max` skill**
+
+`styles/tokens.css` is the single source of colour, spacing, type and z-index,
+in light and dark. Primitives: Button, Field, Alert, Card, plus a hand-rolled
+SVG icon set. App shell with skip link, theme toggle (light / dark / system),
+`AuthProvider`, `RequireAuth`.
+
+The seat-status colours are already in the token file, with both themes — see
+ADR-015. They are the palette the product is recognised by and had to be chosen
+as one set with the brand, not bolted on in Phase 3.
+
+No Tailwind, no component library — ADR-014.
+
+**What changed structurally**
+
+Prisma now loads at boot instead of lazily. The API had to start without a
+database in Phase 0; from Phase 1 every route needs one, so
+`requireEnv('DATABASE_URL')` fails immediately with a message naming the fix
+rather than starting fine and 500-ing on every request.
+
+**Found while testing**
+
+A route appended after `createApp()` is shadowed by its `notFound` handler and
+404s. Correct behaviour, and the reason `requireRole` gets its own minimal app
+in the test rather than a route bolted onto the real one.
+
+**Verified**
+
+10/10 auth tests green. Typecheck clean in all three workspaces. Production
+build of the web app succeeds (247 kB JS, 79 kB gzipped). Live check against
+the running stack: seeded customer and organiser log in with the right roles,
+`/auth/me` resolves, a wrong password 401s, and the vite proxy carries the
+bearer token through.
+
+**Next session starts with**
+
+Phase 2 — admin venue CRUD with bulk seat creation, organiser events and
+per-category pricing, and `instantiateShowSeats()` in one transaction.
 
 ---
 

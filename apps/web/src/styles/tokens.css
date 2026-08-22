@@ -1,0 +1,204 @@
+/*
+ * Design tokens. Every colour, size and duration in the app comes from here.
+ *
+ * Light is the base on :root. Dark is redefined in two places — a
+ * prefers-color-scheme block for people who never touch the toggle, and a
+ * [data-theme="dark"] block so the toggle wins over the OS in both directions.
+ * Nothing outside this file may declare a raw hex value.
+ *
+ * The seat-status colours are defined here, in Phase 1, even though the seat
+ * map does not exist until Phase 3: they are the one palette the whole product
+ * is recognised by, and they have to be picked as a set with everything else
+ * rather than bolted on later.
+ */
+
+:root {
+  /* ---- brand ---- */
+  --brand: #2563eb;
+  --brand-hover: #1d4ed8;
+  --brand-soft: #dbeafe;
+  --brand-ink: #ffffff;
+
+  /* CTA sits apart from brand blue so "Book" never reads as just another link */
+  --cta: #ea580c;
+  --cta-hover: #c2410c;
+  --cta-ink: #ffffff;
+
+  /* ---- surfaces ---- */
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --surface-2: #eef0f4;
+  --overlay: rgb(15 23 42 / 0.45);
+
+  /* ---- text ---- */
+  --text: #0f172a;
+  --text-muted: #475569; /* slate-600 — the lightest that still clears 4.5:1 */
+  --text-faint: #64748b;
+  --text-on-brand: #ffffff;
+
+  /* ---- lines ---- */
+  --border: #d8dde5;
+  --border-strong: #b3bcca;
+  --ring: #2563eb;
+
+  /* ---- status ---- */
+  --danger: #b91c1c;
+  --danger-soft: #fee2e2;
+  --success: #15803d;
+  --success-soft: #dcfce7;
+  --warning: #b45309;
+  --warning-soft: #fef3c7;
+
+  /* ---- seat map (Phase 3 uses these; defined as one set with the rest) ---- */
+  --seat-free: #0f766e;
+  --seat-free-bg: #ccfbf1;
+  --seat-held: #b45309;
+  --seat-held-bg: #fef3c7;
+  --seat-offered: #6d28d9;
+  --seat-offered-bg: #ede9fe;
+  --seat-booked: #64748b;
+  --seat-booked-bg: #e2e8f0;
+
+  /* ---- type ---- */
+  --font-brand: 'Righteous', ui-rounded, 'Trebuchet MS', sans-serif;
+  --font-body: 'Poppins', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* 1rem = 16px. Body never goes below 16px — smaller is unreadable on phones. */
+  --text-xs: 0.8125rem;
+  --text-sm: 0.9375rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.375rem;
+  --text-2xl: 1.75rem;
+  --text-3xl: 2.25rem;
+
+  --leading-tight: 1.2;
+  --leading-body: 1.6;
+
+  /* ---- space, on a 4px grid ---- */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4rem;
+
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 16px;
+  --radius-full: 999px;
+
+  --shadow-sm: 0 1px 2px rgb(15 23 42 / 0.06);
+  --shadow: 0 1px 3px rgb(15 23 42 / 0.08), 0 8px 24px -12px rgb(15 23 42 / 0.18);
+  --shadow-lg: 0 2px 6px rgb(15 23 42 / 0.08), 0 24px 48px -24px rgb(15 23 42 / 0.3);
+
+  /* Named so nobody invents a z-index: 9999 at 2am */
+  --z-sticky: 10;
+  --z-dropdown: 20;
+  --z-overlay: 30;
+  --z-toast: 50;
+
+  --duration-fast: 120ms;
+  --duration: 200ms;
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Every touch target is at least this tall. */
+  --tap: 44px;
+
+  --container: 1120px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --brand: #60a5fa;
+    --brand-hover: #93c5fd;
+    --brand-soft: #17243d;
+    --brand-ink: #0b1220;
+
+    --cta: #fb923c;
+    --cta-hover: #fdba74;
+    --cta-ink: #1a1005;
+
+    --bg: #0b0f17;
+    --surface: #131923;
+    --surface-2: #1b2230;
+    --overlay: rgb(0 0 0 / 0.6);
+
+    --text: #e9edf5;
+    --text-muted: #a8b3c5;
+    --text-faint: #8792a5;
+    --text-on-brand: #0b1220;
+
+    --border: #262e3c;
+    --border-strong: #3d475a;
+    --ring: #60a5fa;
+
+    --danger: #f87171;
+    --danger-soft: #331717;
+    --success: #4ade80;
+    --success-soft: #10291a;
+    --warning: #fbbf24;
+    --warning-soft: #2e2210;
+
+    --seat-free: #2dd4bf;
+    --seat-free-bg: #0d2f2b;
+    --seat-held: #fbbf24;
+    --seat-held-bg: #33260f;
+    --seat-offered: #a78bfa;
+    --seat-offered-bg: #241e3e;
+    --seat-booked: #7b8494;
+    --seat-booked-bg: #1e242f;
+
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow: 0 1px 3px rgb(0 0 0 / 0.5), 0 8px 24px -12px rgb(0 0 0 / 0.8);
+    --shadow-lg: 0 2px 6px rgb(0 0 0 / 0.5), 0 24px 48px -24px rgb(0 0 0 / 0.9);
+  }
+}
+
+:root[data-theme='dark'] {
+  --brand: #60a5fa;
+  --brand-hover: #93c5fd;
+  --brand-soft: #17243d;
+  --brand-ink: #0b1220;
+
+  --cta: #fb923c;
+  --cta-hover: #fdba74;
+  --cta-ink: #1a1005;
+
+  --bg: #0b0f17;
+  --surface: #131923;
+  --surface-2: #1b2230;
+  --overlay: rgb(0 0 0 / 0.6);
+
+  --text: #e9edf5;
+  --text-muted: #a8b3c5;
+  --text-faint: #8792a5;
+  --text-on-brand: #0b1220;
+
+  --border: #262e3c;
+  --border-strong: #3d475a;
+  --ring: #60a5fa;
+
+  --danger: #f87171;
+  --danger-soft: #331717;
+  --success: #4ade80;
+  --success-soft: #10291a;
+  --warning: #fbbf24;
+  --warning-soft: #2e2210;
+
+  --seat-free: #2dd4bf;
+  --seat-free-bg: #0d2f2b;
+  --seat-held: #fbbf24;
+  --seat-held-bg: #33260f;
+  --seat-offered: #a78bfa;
+  --seat-offered-bg: #241e3e;
+  --seat-booked: #7b8494;
+  --seat-booked-bg: #1e242f;
+
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow: 0 1px 3px rgb(0 0 0 / 0.5), 0 8px 24px -12px rgb(0 0 0 / 0.8);
+  --shadow-lg: 0 2px 6px rgb(0 0 0 / 0.5), 0 24px 48px -24px rgb(0 0 0 / 0.9);
+}

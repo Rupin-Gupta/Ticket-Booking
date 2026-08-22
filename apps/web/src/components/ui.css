@@ -1,0 +1,207 @@
+/* Primitives. Everything here reads from tokens.css — no raw hex. */
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ------------------------------------------------------------------ Button */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  /* Meets the 44px minimum touch target rather than approaching it */
+  min-height: var(--tap);
+  padding: 0 var(--space-5);
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  font-size: var(--text-base);
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+  /* Colour and shadow only — never transform. A hover that resizes the button
+     shifts everything around it and makes the pointer slide off its own target. */
+  transition:
+    background-color var(--duration) var(--ease),
+    border-color var(--duration) var(--ease),
+    color var(--duration) var(--ease),
+    box-shadow var(--duration) var(--ease);
+}
+
+.btn:disabled {
+  opacity: 0.55;
+}
+
+.btn--full {
+  width: 100%;
+}
+
+.btn--primary {
+  background: var(--brand);
+  color: var(--brand-ink);
+  box-shadow: var(--shadow-sm);
+}
+.btn--primary:hover:not(:disabled) {
+  background: var(--brand-hover);
+}
+
+.btn--cta {
+  background: var(--cta);
+  color: var(--cta-ink);
+  box-shadow: var(--shadow-sm);
+}
+.btn--cta:hover:not(:disabled) {
+  background: var(--cta-hover);
+}
+
+.btn--ghost {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+.btn--ghost:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+
+.btn--quiet {
+  background: transparent;
+  color: var(--text-muted);
+  padding: 0 var(--space-3);
+}
+.btn--quiet:hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+/* ------------------------------------------------------------------- Field */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.field__label {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text);
+}
+
+.field__control {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.field__input {
+  width: 100%;
+  min-height: var(--tap);
+  padding: 0 var(--space-4);
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  /* 16px minimum: anything smaller makes iOS Safari zoom on focus */
+  font-size: var(--text-base);
+  transition:
+    border-color var(--duration) var(--ease),
+    box-shadow var(--duration) var(--ease);
+}
+
+.field__input::placeholder {
+  color: var(--text-faint);
+}
+
+.field__input:hover:not(:disabled) {
+  border-color: var(--text-faint);
+}
+
+.field__input:focus-visible {
+  outline: none;
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px var(--brand-soft);
+}
+
+.field__input--padded {
+  padding-right: calc(var(--tap) + var(--space-1));
+}
+
+/* Red border alone fails for anyone who cannot distinguish it — the icon and
+   the message under the field are what actually carry the meaning. */
+.field__input--error {
+  border-color: var(--danger);
+}
+.field__input--error:focus-visible {
+  box-shadow: 0 0 0 3px var(--danger-soft);
+}
+
+.field__reveal {
+  position: absolute;
+  right: var(--space-1);
+  display: grid;
+  place-items: center;
+  width: var(--tap);
+  height: var(--tap);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  transition: color var(--duration) var(--ease);
+}
+.field__reveal:hover {
+  color: var(--text);
+}
+
+.field__hint {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.field__error {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--danger);
+}
+.field__error svg {
+  flex-shrink: 0;
+}
+
+/* ------------------------------------------------------------------- Alert */
+
+.alert {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid;
+  border-radius: var(--radius);
+  font-size: var(--text-sm);
+}
+.alert svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.alert--danger {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.alert--success {
+  background: var(--success-soft);
+  border-color: var(--success);
+  color: var(--success);
+}
+
+/* -------------------------------------------------------------------- Card */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+}
