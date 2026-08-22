@@ -31,14 +31,27 @@ export async function advanceWaitlist(
 ): Promise<PendingOffer | null> {
   // Lock the seat first. Without this, two cancellations freeing seats in the
   // same category could each read an empty-looking queue.
-  const locked = await tx.$queryRaw<{ id: string; showId: string; categoryId: string }[]>`
-    SELECT id, "showId", "categoryId"
+  const locked = await tx.$queryRaw<
+    { id: string; showId: string; categoryId: string; status: string }[]
+  >`
+    SELECT id, "showId", "categoryId", status::text AS status
     FROM "ShowSeat"
     WHERE id = ${showSeatId}
     FOR UPDATE`;
 
   const seat = locked[0];
   if (!seat) return null;
+
+  // Every legitimate caller passes a seat that is BOOKED (a cancellation) or
+  // OFFERED (an offer that lapsed or was given up). A HELD seat means somebody
+  // is mid-checkout, and a future caller passing one here would silently take a
+  // live hold away from a paying customer. Refuse rather than trust the caller.
+  if (seat.status === 'HELD' || seat.status === 'AVAILABLE') {
+    throw new Error(
+      `advanceWaitlist called on a ${seat.status} seat (${showSeatId}) — ` +
+        'it must only be given a seat that has just been freed.',
+    );
+  }
 
   /*
    * FIFO by joinedAt — the queue's whole promise.

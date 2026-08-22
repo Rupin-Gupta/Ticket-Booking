@@ -19,3 +19,6 @@ npm-debug.log*
 
 .vercel/
 apps/api/prisma/*.db
+
+# Build artefact of `npm run zip` — regenerate, never commit
+ticket-booking-system.zip

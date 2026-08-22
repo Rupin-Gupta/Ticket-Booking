@@ -1,7 +1,18 @@
 import type { ApiErrorBody } from '@ticket/shared';
 
-/** Empty in dev — vite proxies /api to the API. Set on Vercel. */
+/** Empty in dev — vite proxies /api to the API. Must be set on Vercel. */
 const BASE = import.meta.env.VITE_API_URL ?? '';
+
+// In development an empty BASE is correct: vite proxies to localhost:4000. In
+// production it means every request goes to the static host, which answers 404
+// for /api/* — an app that looks broken for a reason nobody can see. Say so.
+if (import.meta.env.PROD && !BASE) {
+  console.error(
+    'VITE_API_URL is not set. This build will call its own origin for /api/* ' +
+      'and every request will 404. Set it to the API URL in the Vercel project ' +
+      'settings and redeploy — it is baked in at build time, so a restart is not enough.',
+  );
+}
 
 export class ApiClientError extends Error {
   constructor(

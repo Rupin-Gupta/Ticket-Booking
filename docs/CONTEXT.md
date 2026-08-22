@@ -71,6 +71,27 @@ graded suite, the second test server now has a 418 sentinel catch-all and the
 test asserts the two servers did not collide, so any recurrence names itself
 instead of looking like a broken role check.
 
+**Pre-deployment code review — three real findings, all fixed**
+
+1. **`vercel.json` would have failed the deploy.** I had used `"//"` keys as
+   comments inside the `rewrites` and `headers` arrays. Vercel validates that
+   file against a schema and rejects unknown keys, and JSON has no comments in
+   the first place. Stripped to strict JSON; the reasoning moved to
+   `docs/DEPLOY_NOTES.md`.
+2. **A missing `VITE_API_URL` failed silently.** The value is baked in at build
+   time, so an unset variable makes the app call its own origin, get 404s from
+   the static host, and look broken for a reason nothing surfaces. Production
+   builds now log exactly what is wrong and how to fix it.
+3. **`advanceWaitlist()` trusted its caller.** Every current caller passes a
+   seat that is `BOOKED` or `OFFERED`, but nothing enforced it — a future caller
+   passing a `HELD` seat would have silently taken a live hold from a customer
+   mid-checkout. It now refuses anything other than a genuinely freed seat.
+
+Also checked and clean: no `$queryRawUnsafe` or `Prisma.raw` anywhere, so every
+raw query is a parameterised tagged template; `heldByUserId` never leaves
+`seats/service.ts`; and every unauthenticated route is deliberately public
+(register, login, browse, verify, read-an-offer).
+
 **Next session starts with**
 
 The owner pushing. Then Render Blueprint, Vercel, `WEB_URL` and `API_URL`,
