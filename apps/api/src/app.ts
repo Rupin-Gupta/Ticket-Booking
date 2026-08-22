@@ -5,6 +5,8 @@ import { allowedOrigins, configured, env } from './env.js';
 import { requestLogger } from './middleware/logger.js';
 import { errorHandler, notFound } from './middleware/error.js';
 import { authRoutes } from './modules/auth/routes.js';
+import { venueRoutes } from './modules/venues/routes.js';
+import { eventRoutes, showRoutes } from './modules/events/routes.js';
 import { prisma } from './lib/prisma.js';
 
 /**
@@ -52,8 +54,10 @@ export function createApp() {
 
   const api = express.Router();
   api.use('/auth', authRoutes);
-  // Phase 2+ mounts the rest here: venues, events, shows, holds, bookings,
-  // waitlist, organiser.
+  api.use('/venues', venueRoutes);
+  api.use('/events', eventRoutes);
+  api.use('/shows', showRoutes);
+  // Phase 3+ mounts the rest here: holds, bookings, waitlist, organiser.
   app.use('/api/v1', api);
 
   app.use(notFound);
