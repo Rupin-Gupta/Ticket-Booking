@@ -254,6 +254,35 @@ device that never ran the project.
 - [ ] OpenAPI spec
 - [ ] Error tracking (Sentry free tier)
 
+## Phase 10 — Differentiation beyond the brief (optional)
+
+Full reasoning, prior-art research and effort estimates:
+**[docs/FEATURE_BACKLOG.md](FEATURE_BACKLOG.md)**
+
+- [ ] **Prerequisite: separate test database.** Tests currently write into the
+      database serving the live site. A second free Supabase project plus
+      `DATABASE_URL_TEST`. Do this before anything below — each item adds tests.
+- [ ] **Cancellation-rate seat quality** — the data is already in `Booking`,
+      entirely unread. ~½ day
+- [ ] **Hesitation Index** ⭐ — seat quality from _abandoned holds_. The one
+      genuinely nobody has, because nobody keeps hold telemetry. ~1 day
+- [ ] **Dead-seat heatmap** (organiser) — not novel, but completes the
+      seat-intelligence trio with the two above. ~½ day
+- [ ] **Preference-aware waitlist + honest odds** — "2 together, rows A–F, under
+      ₹500", and a real probability instead of false hope. ~2 days
+- [ ] **Seat-swap matchmaking** — no platform found that does this. ~2 days
+- [ ] **Automatic pre-show upgrades** — Ticketmaster does this manually via box
+      office; automating it is unshipped. ~1 day
+- [ ] **Accessibility-aware seating** — wheelchair space + companion seat held
+      atomically. Documented demand: a public petition against BookMyShow. ~1 day
+- [ ] **Shared-hold group booking** — N browsers, one clock, atomic commit.
+      Strongest engineering claim, weakest novelty claim. ~2–3 days
+
+> Three earlier ideas were **cut after checking real platforms**: transfer with
+> revocation (Ticketmaster SafeTix rotates barcodes already), conditional
+> cancellation (DICE's Wait List is exactly this), and treating the dead-seat
+> heatmap as novel (venue analytics tools have done it for years).
+
 ---
 
 ## Cross-cutting, do not let these slip
