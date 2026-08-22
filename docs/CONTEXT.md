@@ -12,11 +12,11 @@ an entry here costs the next one twenty minutes of rediscovery.
 
 |                 |                                                                                                                     |
 | --------------- | ------------------------------------------------------------------------------------------------------------------- |
-| **Phase**       | **1 — COMPLETE.** Phase 2 (venues, events, shows) is next.                                                          |
-| **Runnable?**   | Yes. `npm run dev` → sign up, log in, log out, protected routes, dark/light.                                        |
+| **Phase**       | **2 — COMPLETE.** Phase 3 (seat map, holds, concurrency) is next — evaluation-critical.                             |
+| **Runnable?**   | Yes. Browse and filter events, view detail and pricing, build venues, create events and shows.                      |
 | **Repo**        | Local git initialised. Remote `https://github.com/Rupin-Gupta/Ticket-Booking.git` — **not pushed yet, user pushes** |
-| **Blocked on**  | Nothing. Upstash needed by Phase 3, Resend by Phase 4.                                                              |
-| **Next action** | Phase 2: admin venue + seat layout, organiser events and pricing, `instantiateShowSeats()`.                         |
+| **Blocked on**  | **Upstash `REDIS_URL` is needed for Phase 3's hold sweeper.** Resend by Phase 4.                                    |
+| **Next action** | Phase 3: `GET /shows/:id/seats`, the locked hold transaction, the sweeper, and the 20-parallel-request test.        |
 
 Demo logins (`npm run db:seed -w apps/api`), all `password123`:
 `admin@ticket.dev`, `organiser@ticket.dev`, `customer@ticket.dev`,
@@ -26,6 +26,75 @@ Run `npm test -w apps/api` for the auth suite.
 `/health` reports which of database / redis / auth / email are configured and
 round-trips a `SELECT 1`, and the web placeholder renders that as a checklist —
 so the remaining setup is visible without reading code.
+
+---
+
+## 2026-08-22 — Session 6: Phase 2, venues, events, shows
+
+**Schema gap found and closed.** Seats belong to a venue, price categories
+belong to an event, and nothing connected them — so `instantiateShowSeats()`
+had no way to decide what a seat costs. `SeatCategory.sections String[]` closes
+it (ADR-016), validated on write: sections must exist in the venue and no two
+categories may claim the same one. Migration `20260822102226_category_sections`.
+
+**Backend**
+
+Venues module (admin-only writes, public reads) with bulk seat-block creation
+that stacks blocks below whatever exists, so a caller never computes an offset
+and sections cannot overlap. Events module with public browsing and filtering,
+organiser-owned writes, category pricing, and show creation.
+
+`instantiateShowSeats()` runs inside the same transaction that creates the
+show, and refuses outright if any section is unpriced. A show whose seats
+failed to generate is worse than no show — it renders as a bookable date over
+an empty seat map.
+
+Ownership is checked in the service, not the route. `requireRole(['ORGANISER'])`
+says "some organiser"; `assertOwns()` says "the organiser who owns this event".
+The test asserts the target row is unchanged after a 403, not just the status.
+
+**Frontend**
+
+Events browse with search, type, venue and date filters; event detail with
+pricing and a show picker; admin venue builder with a live layout preview
+rendered from the stored `posX`/`posY`; organiser screen for pricing sections
+and scheduling shows. The organiser screen names which sections are still
+unpriced and disables the show form until none are, because the server would
+refuse anyway and a pre-empted 400 is better than a hit one.
+
+**The bug worth remembering (ADR-017)**
+
+`router.post('/x', middlewareArray, handler)` selects an Express overload that
+stops inferring the handler's parameters — `req` and `res` silently become
+`any`. Spreading the array restored inference and immediately surfaced **eight
+real type errors** that the implicit `any` had been hiding: `req.params.id` is
+genuinely `string | string[] | undefined`, and passing `description: undefined`
+into a Prisma update is genuinely rejected under `exactOptionalPropertyTypes`.
+
+Fixed properly rather than re-suppressed: `lib/http.ts` now has `param()`,
+which validates instead of casting the union away, and `compact()`, which
+strips `undefined` keys so a PATCH that omitted a field cannot blank a column.
+
+An implicit `any` in a route handler is never cosmetic — it is the compiler
+switched off exactly where request data enters.
+
+**Correction to my own reporting:** I said "0 type errors" for the API earlier
+in this session. That reading was wrong; re-running gave 19. The errors above
+were present, not newly introduced.
+
+**Verified**
+
+23/23 tests green. Typecheck clean across all three workspaces. Web builds
+(265 kB JS / 83 kB gzipped). Live against the running stack: public browsing
+without a token, `type` and case-insensitive `q` filters, 403 for a customer
+and an organiser on `POST /venues`, 403 for a customer on `/events/mine`, and
+`GET /shows/:id` reporting 100 generated `ShowSeat` rows.
+
+**Next session starts with**
+
+Phase 3, the evaluation-critical one — seat map endpoint, the locked hold
+transaction with `ORDER BY id FOR UPDATE`, lazy expiry, the BullMQ sweeper, and
+the 20-parallel-request concurrency test. **Needs `REDIS_URL` from Upstash.**
 
 ---
 

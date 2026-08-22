@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client';
 import type { Role } from '@ticket/shared';
 import { prisma } from '../../lib/prisma.js';
 import { ApiError } from '../../lib/errors.js';
+import { compact } from '../../lib/http.js';
 import type {
   CreateCategoryInput,
   CreateEventInput,
@@ -117,7 +118,7 @@ export async function createEvent(input: CreateEventInput, caller: Caller) {
   if (!venue) throw ApiError.badRequest('VENUE_NOT_FOUND', 'No venue with that id.');
 
   return prisma.event.create({
-    data: { ...input, organiserId: caller.sub },
+    data: { ...compact(input), organiserId: caller.sub },
     select: { id: true, title: true, type: true, description: true, venueId: true },
   });
 }
@@ -126,7 +127,7 @@ export async function updateEvent(id: string, input: UpdateEventInput, caller: C
   await assertOwns(id, caller);
   return prisma.event.update({
     where: { id },
-    data: input,
+    data: compact(input),
     select: { id: true, title: true, type: true, description: true, venueId: true },
   });
 }

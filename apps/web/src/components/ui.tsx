@@ -137,3 +137,71 @@ export function Alert({
 export const Card = ({ children, className = '' }: { children: ReactNode; className?: string }) => (
   <div className={`card ${className}`}>{children}</div>
 );
+
+/* ------------------------------------------------------------------ Select */
+
+type SelectProps = React.SelectHTMLAttributes<HTMLSelectElement> & {
+  label: string;
+  /** Renders the label for the eye as well as the screen reader. */
+  showLabel?: boolean;
+};
+
+export function Select({
+  label,
+  showLabel = true,
+  className = '',
+  children,
+  ...rest
+}: SelectProps) {
+  const id = useId();
+  return (
+    <div className={`field ${className}`}>
+      <label className={showLabel ? 'field__label' : 'sr-only'} htmlFor={id}>
+        {label}
+      </label>
+      <select id={id} className="field__input field__select" {...rest}>
+        {children}
+      </select>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------- Textarea */
+
+type TextareaProps = React.TextareaHTMLAttributes<HTMLTextAreaElement> & { label: string };
+
+export function Textarea({ label, className = '', ...rest }: TextareaProps) {
+  const id = useId();
+  return (
+    <div className={`field ${className}`}>
+      <label className="field__label" htmlFor={id}>
+        {label}
+      </label>
+      <textarea id={id} className="field__input field__textarea" rows={3} {...rest} />
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------- Empty/Load */
+
+export function EmptyState({ title, children }: { title: string; children?: ReactNode }) {
+  return (
+    <div className="empty">
+      <p className="empty__title">{title}</p>
+      {children && <p className="empty__body">{children}</p>}
+    </div>
+  );
+}
+
+/**
+ * Reserves the space the real content will occupy, so nothing jumps when it
+ * lands. `aria-hidden` because a skeleton means nothing read aloud — the
+ * surrounding region carries aria-busy instead.
+ */
+export const Skeleton = ({ height = 76, count = 3 }: { height?: number; count?: number }) => (
+  <div className="skeletons" aria-hidden="true">
+    {Array.from({ length: count }, (_, i) => (
+      <div key={i} className="skeleton" style={{ height }} />
+    ))}
+  </div>
+);

@@ -4,9 +4,12 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './auth/AuthContext.js';
 import { RequireAuth } from './auth/RequireAuth.js';
 import { AppShell } from './components/AppShell.js';
-import { HomePage } from './pages/HomePage.js';
+import { EventsPage } from './pages/EventsPage.js';
+import { EventDetailPage } from './pages/EventDetailPage.js';
 import { LoginPage } from './pages/LoginPage.js';
 import { RegisterPage } from './pages/RegisterPage.js';
+import { AdminVenuesPage } from './pages/AdminVenuesPage.js';
+import { OrganiserPage } from './pages/OrganiserPage.js';
 import './styles/base.css';
 
 const root = document.getElementById('root');
@@ -18,12 +21,32 @@ createRoot(root).render(
       <AuthProvider>
         <Routes>
           <Route element={<AppShell />}>
-            <Route path="/" element={<HomePage />} />
+            {/* Public */}
+            <Route path="/" element={<EventsPage />} />
+            <Route path="/events/:id" element={<EventDetailPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
 
-            {/* Phase 4 fills this in. The guard is wired now so the redirect
-                behaviour is proven before there is anything worth guarding. */}
+            {/* Role-gated. The guard hides the page; the server's requireRole
+                is what actually protects the data behind it. */}
+            <Route
+              path="/manage"
+              element={
+                <RequireAuth roles={['ORGANISER', 'ADMIN']}>
+                  <OrganiserPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/admin/venues"
+              element={
+                <RequireAuth roles={['ADMIN']}>
+                  <AdminVenuesPage />
+                </RequireAuth>
+              }
+            />
+
+            {/* Phase 4 fills this in. Wired now so the redirect is proven. */}
             <Route
               path="/bookings"
               element={

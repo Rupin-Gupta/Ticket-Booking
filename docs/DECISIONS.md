@@ -305,3 +305,55 @@ isolation, they would either clash or force the rest of the palette to move.
 _Constraint they must keep:_ status is never signalled by colour alone. Every
 seat also carries a text label and a distinct shape state, because roughly one
 man in twelve cannot reliably separate the teal from the amber.
+
+---
+
+## ADR-016 — `SeatCategory.sections` maps price bands to venue sections
+
+**Accepted** · 2026-08-22
+
+`SeatCategory` gains `sections String[]`, naming which venue sections that
+price band covers. Validated on write: every section must exist in the event's
+venue, and no two categories in one event may claim the same section.
+
+_The gap it fills:_ seats belong to a **venue**, price categories belong to an
+**event**. Nothing connected the two, so `instantiateShowSeats()` had no way to
+decide what a seat costs. The schema in `CLAUDE.md` did not cover this.
+
+_Alternatives:_ match `SeatCategory.name` to `Seat.section` by string equality —
+brittle, and forces a venue's physical naming onto every event's price list.
+Or pass the mapping in the show-creation request — repeats it for every show
+and lets two shows of one event disagree.
+
+_Why validate at category-write time rather than show-creation:_ a seat that
+cannot be priced is discovered when someone tries to sell it. Catching it when
+the category is defined means seat generation never meets a seat it cannot
+price.
+
+_Consequence:_ creating a show is refused outright while any section is
+unpriced, rather than generating a partial seat map that would quietly sell
+some seats and skip others.
+
+---
+
+## ADR-017 — Middleware arrays are spread, not passed as arrays
+
+**Accepted** · 2026-08-22
+
+Route definitions use `router.post('/x', ...adminOnly, handler)`, never
+`router.post('/x', adminOnly, handler)`.
+
+_Why it matters, and it is not style:_ passing the array selects an Express
+type overload that stops inferring the final handler's parameters, so `req` and
+`res` silently become `any`. That masked eight genuine type errors —
+`req.params.id` really is `string | string[] | undefined`, and passing
+`description: undefined` into a Prisma update really is rejected under
+`exactOptionalPropertyTypes`. Spreading restored inference and surfaced all of
+them.
+
+_What it produced:_ `lib/http.ts` with `param()`, which validates a route
+parameter instead of casting the union away, and `compact()`, which strips
+`undefined` keys so a PATCH that omitted a field cannot blank the column.
+
+_Rule going forward:_ an implicit `any` in a route handler is never cosmetic.
+It is the compiler being switched off exactly where request data enters.
