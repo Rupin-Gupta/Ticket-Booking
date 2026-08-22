@@ -4,6 +4,7 @@ import type { SeatView } from '@ticket/shared';
 import { api } from '../lib/api.js';
 import { messageFor, useAuth } from '../auth/AuthContext.js';
 import { useAsync } from '../lib/useAsync.js';
+import { useLiveSeats } from '../lib/useLiveSeats.js';
 import { formatPrice, formatShowDate, formatShowTime } from '../lib/format.js';
 import { Alert, Button, Card, Skeleton } from '../components/ui.js';
 import { SeatMap } from '../components/SeatMap.js';
@@ -25,9 +26,8 @@ type ShowDetail = {
 
 type Hold = { showId: string; seatIds: string[]; holdExpiresAt: string };
 
-/** Until Phase 6 brings Socket.IO, the map is polled. Slow enough to be cheap,
- *  fast enough that a seat someone else took does not sit stale for long. */
-const POLL_MS = 8000;
+/** Stable identity: a fresh [] each render would restart the hook's effect. */
+const EMPTY_SEATS: SeatView[] = [];
 
 export function ShowPage() {
   const { id } = useParams<{ id: string }>();
@@ -44,15 +44,13 @@ export function ShowPage() {
 
   const reloadSeats = seats.reload;
 
-  // Poll while nothing is in flight. Refreshing mid-request would fight the
-  // user's own selection.
-  useEffect(() => {
-    if (busy) return;
-    const timer = setInterval(reloadSeats, POLL_MS);
-    return () => clearInterval(timer);
-  }, [busy, reloadSeats]);
-
-  const seatList = seats.data?.seats ?? [];
+  // Socket.IO keeps the map live; the hook falls back to polling if the socket
+  // cannot connect, so the page degrades rather than freezing.
+  const { seats: seatList, live } = useLiveSeats({
+    showId: id!,
+    initial: seats.data?.seats ?? EMPTY_SEATS,
+    refetch: reloadSeats,
+  });
 
   // A seat already held by this viewer counts as theirs — refreshing the page
   // mid-checkout must not lose the hold they are still paying for.
@@ -169,6 +167,10 @@ export function ShowPage() {
 
       <div className="showpage__grid">
         <Card className="showpage__map">
+          <p className={`livedot ${live ? 'livedot--on' : ''}`} role="status">
+            <span aria-hidden="true" />
+            {live ? 'Live — updates as others book' : 'Reconnecting…'}
+          </p>
           {seats.loading && seatList.length === 0 ? (
             <Skeleton count={1} height={260} />
           ) : seats.error ? (

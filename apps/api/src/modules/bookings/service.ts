@@ -4,6 +4,7 @@ import { prisma } from '../../lib/prisma.js';
 import { ApiError } from '../../lib/errors.js';
 import { enqueueEmail } from '../../jobs/email.queue.js';
 import { advanceWaitlist, type PendingOffer } from '../waitlist/service.js';
+import { broadcastSeats, broadcastStatus } from '../../realtime/emit.js';
 import { bookingSelect, toBookingView, writeBooking, type BookingRow } from './write.js';
 
 type Caller = { sub: string; role: Role };
@@ -83,6 +84,7 @@ export async function createBooking(showId: string, seatIds: string[], caller: C
   // allowed to be a second late, and a mail provider must never be able to
   // fail a booking the customer has already made.
   void enqueueEmail({ kind: 'booking-confirmed', bookingId: booking.id });
+  broadcastStatus(showId, seatIds, 'BOOKED');
 
   return toBookingView(booking);
 }
@@ -127,6 +129,7 @@ export async function cancelBooking(id: string, caller: Caller) {
           id: true,
           status: true,
           customerId: true,
+          showId: true,
           show: { select: { startsAt: true } },
           seats: { select: { showSeatId: true } },
         },
@@ -166,7 +169,7 @@ export async function cancelBooking(id: string, caller: Caller) {
         if (pending) offers.push(pending);
       }
 
-      return { showSeatIds, offers };
+      return { showSeatIds, offers, showId: booking.showId };
     },
     { maxWait: 15_000, timeout: 20_000 },
   );
@@ -177,6 +180,17 @@ export async function cancelBooking(id: string, caller: Caller) {
   for (const offer of freed.offers) {
     void enqueueEmail({ kind: 'waitlist-offer', entryId: offer.entryId });
   }
+
+  // Seats that went to the waitlist are OFFERED, not AVAILABLE — everyone
+  // else's map has to show them as unavailable, not as suddenly buyable.
+  const offered = new Set(freed.offers.map((o) => o.showSeatId));
+  broadcastSeats(
+    freed.showId,
+    freed.showSeatIds.map((id) => ({
+      id,
+      status: offered.has(id) ? ('OFFERED' as const) : ('AVAILABLE' as const),
+    })),
+  );
 
   return {
     cancelled: true,

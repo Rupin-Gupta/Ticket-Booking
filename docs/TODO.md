@@ -171,14 +171,23 @@ resolves at all; and leaving frees the position for those behind.
 
 ## Phase 6 — Real-time seat map
 
-- [ ] Socket.IO server, `show:{showId}` rooms, JWT handshake auth
-- [ ] `seat:sync` on join, `seat:update` after every committed mutation
-- [ ] `@socket.io/redis-adapter` wired
-- [ ] Web: live seat map, polling fallback on disconnect
-- [ ] Verify across two browsers: A holds → B sees grey within a second
+- [x] Socket.IO server on the same port, `show:{showId}` rooms
+- [x] `seat:sync` on join, `seat:update` after every committed mutation —
+      holds, releases, bookings, cancellations, hold sweeps, offer expiry
+- [x] `@socket.io/redis-adapter` wired, with both connections closed on shutdown
+- [x] Web: live seat map with a connection indicator, polling fallback
+- [x] Verify across two clients: A holds → B sees it without asking
+- [x] No socket auth — deliberate, see ADR-025
+- [x] 6 more tests (72 total), all green
 
 **Done when:** no broadcast fires from inside a transaction, and two API
-instances still deliver every update.
+instances still deliver every update. ✅ **Both** — every `broadcast*` call
+sits after its `$transaction` resolves, and the Redis adapter is wired and
+confirmed at boot.
+
+Also covered: a room only hears about its own show; the broadcast's keys are
+exactly `['id','status']`, so no viewer-specific field can creep in; and a
+release broadcasts `AVAILABLE` to everyone watching.
 
 ## Phase 7 — Organiser dashboard and polish
 

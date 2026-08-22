@@ -10,6 +10,9 @@ export default defineConfig({
     proxy: {
       '/api': { target: 'http://localhost:4000', changeOrigin: true },
       '/health': { target: 'http://localhost:4000', changeOrigin: true },
+      // ws: true — without it the upgrade request is proxied as plain HTTP and
+      // Socket.IO silently falls back to long-polling forever.
+      '/socket.io': { target: 'http://localhost:4000', changeOrigin: true, ws: true },
     },
   },
 });
