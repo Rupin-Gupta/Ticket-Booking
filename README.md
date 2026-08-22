@@ -26,7 +26,7 @@ every confirmed booking emails a QR code ticket.
 
 ## Stack
 
-Node + TypeScript + Express · React + Vite · PostgreSQL (Neon) + Prisma ·
+Node + TypeScript + Express · React + Vite · PostgreSQL (Supabase) + Prisma ·
 Redis (Upstash) + BullMQ · Socket.IO · JWT + Argon2id · `qrcode` + Nodemailer/Resend.
 
 Monorepo via npm workspaces: `apps/api`, `apps/web`, `packages/shared`.
@@ -47,20 +47,36 @@ any account exists.
 
 ### Accounts
 
-Three free-tier services, none of which expire:
+Three free-tier services. None expire, but see the Supabase warning below:
 
-| Service                        | Fills                        | Notes                                                                                                                      |
-| ------------------------------ | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| [Neon](https://neon.tech)      | `DATABASE_URL`, `DIRECT_URL` | Copy **both** strings. `DATABASE_URL` is the pooled one (`-pooler` in the host); `DIRECT_URL` is unpooled, for migrations. |
-| [Upstash](https://upstash.com) | `REDIS_URL`                  | Redis for job queues and the Socket.IO adapter. Needed from Phase 3.                                                       |
-| [Resend](https://resend.com)   | `RESEND_API_KEY`             | Needed from Phase 4. `onboarding@resend.dev` sends without a verified domain, but only to the account owner's address.     |
+| Service                          | Fills                        | Notes                                                                                                                  |
+| -------------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| [Supabase](https://supabase.com) | `DATABASE_URL`, `DIRECT_URL` | Dashboard → Connect. See the connection-string rules below — getting these wrong is the most common failure here.      |
+| [Upstash](https://upstash.com)   | `REDIS_URL`                  | Redis for job queues and the Socket.IO adapter. Needed from Phase 3.                                                   |
+| [Resend](https://resend.com)     | `RESEND_API_KEY`             | Needed from Phase 4. `onboarding@resend.dev` sends without a verified domain, but only to the account owner's address. |
+
+**Supabase gives you three connection strings. Take these two, and not the third:**
+
+| Variable       | Which string                      | Port   | Used by                                               |
+| -------------- | --------------------------------- | ------ | ----------------------------------------------------- |
+| `DATABASE_URL` | Transaction pooler                | `6543` | The running app                                       |
+| `DIRECT_URL`   | Session pooler                    | `5432` | `prisma migrate`                                      |
+| —              | ~~Direct~~ `db.<ref>.supabase.co` | —      | **Never.** IPv6-only; works locally, fails on Render. |
+
+`DATABASE_URL` must end in `?pgbouncer=true` — the transaction pooler cannot do
+prepared statements, and Prisma uses them by default.
+
+> ⚠️ **Supabase pauses a free project after 7 days with no database activity,
+> and restoring it is manual.** `/health` runs a `SELECT 1`, so a daily ping of
+> the deployed API keeps it alive. That cron is set up in Phase 8 — before
+> submitting or demoing, confirm it is actually running.
 
 Also generate a signing secret: `openssl rand -base64 48` → `JWT_SECRET`.
 
 ### Once the database is up
 
 ```bash
-npm run db:migrate     # creates the schema on Neon (uses DIRECT_URL)
+npm run db:migrate     # creates the schema on Supabase (uses DIRECT_URL)
 npm run db:studio      # optional: browse the data
 ```
 

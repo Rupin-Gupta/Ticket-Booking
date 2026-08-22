@@ -1,10 +1,11 @@
 // Ticket Booking System — authoritative schema.
 //
-// Neon needs two connection strings and mixing them up is the classic
+// Supabase needs two connection strings and mixing them up is the classic
 // "works locally, breaks on deploy" bug:
-//   DATABASE_URL — pooled   (host contains `-pooler`), used by the running app
-//   DIRECT_URL   — unpooled, used by `prisma migrate` only
-// Migrations take advisory locks that a connection pooler mangles.
+//   DATABASE_URL — transaction pooler, :6543, ?pgbouncer=true — the app
+//   DIRECT_URL   — session pooler,     :5432                  — migrations only
+// Migrations take advisory locks, which are session state; the transaction
+// pooler discards session state between statements. See apps/api/.env.example.
 
 generator client {
   provider = "prisma-client-js"

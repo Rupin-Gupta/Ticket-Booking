@@ -21,7 +21,17 @@
       "Bash(grep -E \"\\\\.env$\")",
       "Bash(git add *)",
       "Bash(git commit -q -m ' *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "WebSearch",
+      "Bash(sed -i '' -e 's/Neon + Prisma init/Supabase + Prisma init/' -e 's/Vercel + Render + Neon/Vercel + Render + Supabase/' -e 's/user creating Neon +/user creating Supabase +/' CLAUDE.md)",
+      "Bash(sed -i '' -e 's/DB → Neon,/DB → Supabase,/' -e 's/\\\\*\\\\*Neon project created/**Supabase project created/' -e 's/needs Neon first/needs Supabase first/' -e 's/applies cleanly against Neon\\\\./applies cleanly against Supabase./' docs/TODO.md)",
+      "Bash(sed -i '' -e 's/│ \\(Neon\\) │/│ \\(Supabase\\) │/' docs/ARCHITECTURE.md)",
+      "Bash(sed -i '' -e 's/set up Neon yet/set up Supabase yet/' apps/api/src/lib/prisma.ts)",
+      "Bash(sed -i '' -e 's/PostgreSQL · Neon/PostgreSQL · Supabase/' -e 's/Neon + Prisma, Express/Supabase + Prisma, Express/' -e 's/Vercel + Render + Neon,/Vercel + Render + Supabase,/' docs/blueprint.html)",
+      "Bash(sed -i '' -e 's/with `directUrl` wired for Neon\\\\./with `directUrl` wired for the host./' -e 's/`npm run db:migrate` once Neon is up/`npm run db:migrate` once Supabase is up/' docs/CONTEXT.md)",
+      "Bash(echo \"pid $!\")",
+      "Bash(kill 4681)",
+      "Bash(pkill -f \"vite\")"
     ]
   }
 }
