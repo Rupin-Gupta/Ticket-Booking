@@ -17,15 +17,31 @@ every confirmed booking sends an email with a QR code ticket.
 
 ## Stack (decided — do not change without asking)
 
-- **Backend:** Node.js + TypeScript + Express, deployed on Render
+**The API was ported from TypeScript to Python on 2026-08-23**, at the owner's
+request. The frontend stays TypeScript: it is React in a browser, which is a
+platform constraint, not a preference. Everything below reflects the current
+state; the retired TypeScript API is in git history up to commit `6c7dfd4`.
+
+- **Backend:** Python 3.12+ + FastAPI + SQLAlchemy 2.0 (async), deployed on Render
+- **Database driver:** **psycopg3**, never asyncpg — see rule 16
 - **Frontend:** React + TypeScript + Vite, deployed on Vercel
-- **Database:** PostgreSQL via Prisma ORM, hosted on Supabase (free tier)
-- **Queue / cache:** Redis via Upstash + BullMQ — sweepers + email jobs
-- **Realtime:** Socket.IO, rooms keyed `show:{showId}`
-- **Auth:** JWT + bcrypt, roles `CUSTOMER` / `ORGANISER` / `ADMIN`
-- **QR:** `qrcode` npm package, encodes a `/verify/{token}` URL, not raw JSON
-- **Email:** Nodemailer, provider = Resend (fallback: Gmail SMTP app password for local dev)
-- **Repo layout:** npm workspaces monorepo — `apps/api`, `apps/web`, `packages/shared`
+- **Database:** PostgreSQL via SQLAlchemy + Alembic, hosted on Supabase (free tier)
+- **Queue / cache:** Redis via Upstash + ARQ — email jobs
+- **Realtime:** `python-socketio` 5.x (protocol rev 5, compatible with the
+  frontend's `socket.io-client` 4.x), rooms keyed `show:{showId}`
+- **Auth:** JWT (PyJWT, HS256 pinned) + Argon2id (`argon2-cffi`), roles
+  `CUSTOMER` / `ORGANISER` / `ADMIN`
+- **Validation:** Pydantic v2 (replaced Zod)
+- **QR:** `qrcode` PyPI package, encodes a `/verify/{token}` URL, not raw JSON
+- **Email:** Resend Python SDK
+- **Tests:** pytest + pytest-asyncio + httpx
+- **Repo layout:** `apps/api` (Python), `apps/web` (TypeScript), with the web
+  app's API types generated from FastAPI's OpenAPI schema
+
+The database schema was deliberately **not** renamed during the port. Tables stay
+quoted PascalCase, columns camelCase, enums native Postgres types. Renaming would
+have been a second variable in a port whose whole value is provable equivalence,
+and the hand-written partial unique index is already written against these names.
 
 Render's free Postgres expires after 30 days — never use it for this project.
 Supabase is the pick (ADR-013); its free tier pauses after 7 days of no
@@ -93,9 +109,29 @@ database activity, which the daily `/health` keep-alive is there to prevent.
     it. Also: the free project **pauses after 7 days of no queries** and
     needs a manual restore, so the daily `/health` ping is load-bearing, not
     a nicety.
-15. **Wire `@socket.io/redis-adapter` before assuming realtime works beyond
+15. **Wire the Socket.IO Redis manager before assuming realtime works beyond
     one instance.** Without it, broadcasts don't cross process boundaries —
     silently drops updates the moment Render runs more than one instance.
+    In Python this is `socketio.AsyncRedisManager`.
+16. **The database driver is `psycopg3` with `prepare_threshold=None`. Never
+    asyncpg.** Supabase's transaction pooler is pgbouncer, which cannot carry
+    a prepared statement across pooled connections — it is prepared on one
+    backend and executed on another that has never heard of it. asyncpg leaks
+    prepared statements through that pooler *even with its own cache disabled*
+    (supabase/supabase#39227, still open at time of writing), and starts
+    failing above roughly 100 concurrent requests — which is exactly the shape
+    of the concurrency test this project is graded on. psycopg3 was spiked
+    before any application code was written: 20, 100 and 250 concurrent
+    contenders for a single seat row, each run one winner, zero errors.
+    The connection string also needs `?pgbouncer=true` stripped — that was a
+    Prisma-only flag, and psycopg forwards unknown parameters to the server,
+    which rejects them.
+17. **Timestamps crossing the wire go through `iso()`, money through
+    `money()`.** `datetime.isoformat()` omits the trailing `Z`, and the browser
+    reads a zone-less timestamp as *local* time — every hold countdown would be
+    wrong by the viewer's UTC offset, silently, for non-UTC users only. And the
+    price column is `Numeric(65, 30)`, so a plain `str()` ships thirty zeros;
+    `money()` renders `450`, never `450.000…` and never a float.
 
 ## Data model
 
@@ -357,7 +393,24 @@ the index.
 
 ## Current phase
 
-`Phase 8 — deploy config and all documentation complete; deployment itself is
-blocked on the owner pushing to GitHub. 79 tests green. Deliverables 1, 2 and 4
-are done (zip script, README, SYSTEM_DESIGN.md); only #3, the hosted URL,
-remains. Detail in docs/CONTEXT.md.`
+`Python port, in progress (started 2026-08-23). The deployed site is
+intentionally offline for the duration.`
+
+**Ported and verified against the live database:**
+
+| Piece | State |
+| --- | --- |
+| Config, engine, ORM (all 10 tables) | done — enums, Decimal and arrays round-trip |
+| Security: Argon2id, HS256, random tokens | done — 20 checks |
+| Auth module + app factory + error shapes | done |
+| Seat map, holds, sweeper | done — **20-way race green over real TCP** |
+
+**Not yet ported:** venues, events/shows, bookings + QR, waitlist + offers,
+organiser dashboard, the ARQ email queue, the Socket.IO server, Alembic, the
+79-test suite, and the `apps/api-py` → `apps/api` swap.
+
+The port is a strict 1:1 rewrite: the existing tests are the specification, and
+no behaviour changes until they all pass. Milestone 0/1 feature work
+(`docs/superpowers/plans/2026-08-23-venue-capabilities-and-booking-flow.md`) is
+**superseded** — it was written against the TypeScript codebase and must be
+re-planned once the port lands.
