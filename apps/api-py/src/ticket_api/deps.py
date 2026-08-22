@@ -31,6 +31,28 @@ async def current_user(
 CurrentUser = Annotated[TokenPayload, Depends(current_user)]
 
 
+async def optional_user(
+    authorization: Annotated[str | None, Header()] = None,
+) -> TokenPayload | None:
+    """
+    The seat map is public, but a signed-in viewer should see which seats are
+    their own.
+
+    Reads the token if one is present and ignores it if it is not. This must
+    never raise, or the map breaks for anyone browsing signed out — and an
+    expired token here just means "not signed in", not "error".
+    """
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+    try:
+        return verify_access_token(authorization.removeprefix("Bearer ").strip())
+    except ApiError:
+        return None
+
+
+OptionalUser = Annotated[TokenPayload | None, Depends(optional_user)]
+
+
 def require_role(*roles: Role) -> Callable[..., TokenPayload]:
     """
     Coarse role gate. Layer it on top of authentication.
