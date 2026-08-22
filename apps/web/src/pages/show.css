@@ -99,3 +99,24 @@
 .countdown--urgent {
   color: var(--danger);
 }
+
+/* Connection state. Text as well as a dot — a colour alone says nothing to
+   a screen reader, and role="status" announces the change politely. */
+.livedot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+.livedot span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-faint);
+}
+.livedot--on span {
+  background: var(--seat-free);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--seat-free) 25%, transparent);
+}

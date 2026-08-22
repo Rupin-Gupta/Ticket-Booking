@@ -517,3 +517,48 @@ cannot disagree.
 
 _Cost:_ one extra count per entry when listing. Irrelevant at this scale, and
 the index on `(showId, categoryId, status, joinedAt)` already covers it.
+
+---
+
+## ADR-024 — Broadcasts carry `{ id, status }` only; ownership is reconciled client-side
+
+**Accepted** · 2026-08-22
+
+`seat:update` sends `{ id, status }` per seat. It does **not** carry
+`heldByMe` or `holdExpiresAt`.
+
+_Why:_ a broadcast is one payload delivered to many viewers, and both of those
+fields answer "is this MINE" — a different answer per person. Including them
+would mean either emitting a separate payload per socket, or leaking one
+customer's countdown to everyone watching. `heldByUserId` was never a candidate;
+rule 8 forbids it leaving the server at all.
+
+_How ownership survives:_ the REST response is the source of truth for
+`heldByMe`, and `useLiveSeats` re-applies it — an incoming update keeps
+`heldByMe` while the seat is still `HELD` and drops it, with the countdown, the
+moment the seat moves to anything else.
+
+_Tested:_ the realtime suite asserts the broadcast's keys are exactly
+`['id', 'status']`, so a future field cannot be added by accident.
+
+---
+
+## ADR-025 — No authentication on the socket connection
+
+**Accepted** · 2026-08-22
+
+Socket.IO accepts connections without a token. Rooms are keyed `show:{id}` and
+any client may join any of them, capped at ten rooms per socket.
+
+_Why:_ everything this layer emits is already served by
+`GET /shows/:id/seats` without a token, and after ADR-024 the payload contains
+nothing viewer-specific. A handshake we never read from would be security
+theatre — the protection that matters is that there is nothing private in the
+payload to begin with.
+
+_What would change this:_ the moment a broadcast carries anything per-customer —
+an offer notification, a personal countdown — this needs a JWT handshake and
+per-user rooms. Reconsider before adding any such event.
+
+_The cap exists_ because one socket has no business watching hundreds of shows,
+and an unbounded join loop is a cheap way to consume server memory.

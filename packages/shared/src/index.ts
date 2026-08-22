@@ -70,3 +70,30 @@ export const SOCKET_EVENTS = {
 } as const;
 
 export const showRoom = (showId: string) => `show:${showId}`;
+
+/**
+ * One seat, as broadcast to every viewer of a show.
+ *
+ * Deliberately narrower than `SeatView`: a broadcast is one payload sent to
+ * many people, and `heldByMe` / `holdExpiresAt` are answers to "is this MINE",
+ * which differ per viewer. Putting them in a broadcast would either leak one
+ * customer's countdown to everyone or force a separate emit per socket.
+ *
+ * Clients reconcile locally — each one knows which seats it holds from its own
+ * API responses, and re-applies that to incoming updates.
+ */
+export type SeatUpdate = {
+  id: string;
+  status: SeatStatus;
+};
+
+/** Everything the server broadcasts, keyed by event name. */
+export type ServerEvents = {
+  [SOCKET_EVENTS.seatSync]: (payload: { showId: string; seats: SeatView[] }) => void;
+  [SOCKET_EVENTS.seatUpdate]: (payload: { showId: string; seats: SeatUpdate[] }) => void;
+};
+
+export type ClientEvents = {
+  [SOCKET_EVENTS.showJoin]: (payload: { showId: string }) => void;
+  [SOCKET_EVENTS.showLeave]: (payload: { showId: string }) => void;
+};

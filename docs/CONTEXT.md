@@ -13,10 +13,10 @@ an entry here costs the next one twenty minutes of rediscovery.
 |                 |                                                                                                                     |
 | --------------- | ------------------------------------------------------------------------------------------------------------------- |
 | **Phase**       | **2 — COMPLETE.** Phase 3 (seat map, holds, concurrency) is next — evaluation-critical.                             |
-| **Runnable?**   | Yes, the whole brief except realtime: browse → hold → book → QR email → cancel → waitlist offer → claim.            |
+| **Runnable?**   | Yes — the entire brief works, live. Two browsers on one show now update each other without refreshing.              |
 | **Repo**        | Local git initialised. Remote `https://github.com/Rupin-Gupta/Ticket-Booking.git` — **not pushed yet, user pushes** |
 | **Blocked on**  | Nothing. All three accounts are configured and working.                                                             |
-| **Next action** | Phase 6: Socket.IO rooms, `seat:sync` / `seat:update`, Redis adapter, retire polling.                               |
+| **Next action** | Phase 7: `GET /organiser/events/:id/summary` with revenue, the dashboard, and a polish pass.                        |
 
 Demo logins (`npm run db:seed -w apps/api`), all `password123`:
 `admin@ticket.dev`, `organiser@ticket.dev`, `customer@ticket.dev`,
@@ -26,6 +26,54 @@ Run `npm test -w apps/api` for the auth suite.
 `/health` reports which of database / redis / auth / email are configured and
 round-trips a `SELECT 1`, and the web placeholder renders that as a checklist —
 so the remaining setup is visible without reading code.
+
+---
+
+## 2026-08-22 — Session 10: Phase 6, real-time seat map
+
+**The constraint that shaped it.** A broadcast is one payload to many viewers,
+but `heldByMe` and `holdExpiresAt` answer "is this MINE" — a different answer
+per person. So `seat:update` carries `{ id, status }` and nothing else
+(ADR-024), and `useLiveSeats` reconciles ownership client-side: the REST
+response is the truth for `heldByMe`, and an update keeps it while the seat is
+still HELD, dropping it with the countdown the moment the seat moves.
+
+The test asserts the broadcast's keys are exactly `['id','status']`, so a
+future field cannot slip in by accident.
+
+**No socket auth, deliberately (ADR-025).** Everything emitted is already
+public via `GET /shows/:id/seats`, and after ADR-024 the payload holds nothing
+viewer-specific. A handshake never read from would be theatre. Flagged for
+reconsideration the moment any per-customer event is added.
+
+**Broadcasts fire after commit, everywhere.** Holds, releases, bookings,
+cancellations, the hold sweep and offer expiry all emit once their transaction
+has resolved. Emitting inside means a rollback has already told every browser
+the seat is gone, and nothing corrects them.
+
+`sweepExpiredHolds()` now reads the rows before updating them — an UPDATE alone
+returns a count, which tells no browser which seats freed or in which show.
+
+**Two defects found and fixed**
+
+- The Redis adapter's two duplicated connections were never closed, so the test
+  process hung forever after passing. `stopRealtime()` now quits both.
+- The realtime test's cleanup deleted `ShowSeat` rows while a booking still
+  referenced them — foreign key violation. Bookings go first.
+
+**Verified**
+
+72/72 tests. Typecheck clean. Web builds (350 kB / 111 kB gzipped — Socket.IO
+is most of the increase). Live with two independent clients: a watcher that
+never touched the API received `seat:sync` with all 100 seats on join, then
+`HELD` and `BOOKED` updates as a separate client held and booked, with no
+`heldByUserId`, `heldByMe` or `holdExpiresAt` anywhere in the payloads.
+
+**Next session starts with**
+
+Phase 7 — `GET /organiser/events/:id/summary` (bookings, seats sold, revenue by
+category, excluding cancelled), the organiser dashboard, and a polish pass over
+loading, empty and error states.
 
 ---
 

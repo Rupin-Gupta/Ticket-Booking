@@ -357,7 +357,7 @@ the index.
 
 ## Current phase
 
-`Phase 6 — Real-time seat map, not started. Phases 0-5 complete, including BOTH
-evaluation-critical phases: 20 parallel holds on one seat yield exactly one 201,
-and an ignored waitlist offer walks the queue to the next person on its own.
-66 tests green. Detail in docs/CONTEXT.md.`
+`Phase 7 — Organiser dashboard & polish, not started. Phases 0-6 complete:
+both graded phases plus live Socket.IO seat updates. 72 tests green. The whole
+brief works end to end; what remains is revenue reporting, polish and deploy.
+Detail in docs/CONTEXT.md.`

@@ -3,6 +3,7 @@ import type { SeatStatus, SeatView } from '@ticket/shared';
 import { prisma } from '../../lib/prisma.js';
 import { ApiError } from '../../lib/errors.js';
 import { env } from '../../env.js';
+import { broadcastStatus } from '../../realtime/emit.js';
 import type { HoldSeatsInput } from './schema.js';
 
 /**
@@ -110,7 +111,7 @@ export async function holdSeats(
     seatNumber: number;
   };
 
-  return prisma.$transaction(
+  const result = await prisma.$transaction(
     async (tx) => {
       // One round trip that locks AND reads. Splitting it into a lock query
       // followed by a findMany doubles the time the lock is held, and under
@@ -177,6 +178,11 @@ export async function holdSeats(
       timeout: 20_000,
     },
   );
+
+  // After commit, never inside: a rolled-back transaction that had already told
+  // every browser the seat was taken would leave them all permanently wrong.
+  broadcastStatus(showId, input.seatIds, 'HELD');
+  return result;
 }
 
 /**
@@ -205,13 +211,22 @@ async function assertWithinHoldCap(userId: string, showId: string) {
 
 /** Explicit release — the customer backed out rather than walking away. */
 export async function releaseHolds(showId: string, userId: string) {
-  const { count } = await prisma.showSeat.updateMany({
+  const freed = await prisma.showSeat.findMany({
     // Scoped to this user's own holds. Without heldByUserId in the where
     // clause this endpoint would free anyone's seats.
     where: { showId, heldByUserId: userId, status: 'HELD' },
+    select: { id: true },
+  });
+  if (freed.length === 0) return { released: 0 };
+
+  const ids = freed.map((s) => s.id);
+  await prisma.showSeat.updateMany({
+    where: { id: { in: ids } },
     data: { status: 'AVAILABLE', heldByUserId: null, holdExpiresAt: null },
   });
-  return { released: count };
+
+  broadcastStatus(showId, ids, 'AVAILABLE');
+  return { released: ids.length };
 }
 
 export async function listMyHolds(userId: string) {
@@ -256,9 +271,28 @@ export async function listMyHolds(userId: string) {
  * two sweepers running the same statement converge on the same result.
  */
 export async function sweepExpiredHolds(): Promise<number> {
-  const { count } = await prisma.showSeat.updateMany({
+  // Read the rows first so the broadcast can name which seats freed and in
+  // which show. An UPDATE alone returns a count, which tells nobody's browser
+  // anything useful.
+  const expired = await prisma.showSeat.findMany({
     where: { status: 'HELD', holdExpiresAt: { lte: new Date() } },
+    select: { id: true, showId: true },
+    take: 200,
+  });
+  if (expired.length === 0) return 0;
+
+  const ids = expired.map((s) => s.id);
+  const { count } = await prisma.showSeat.updateMany({
+    where: { id: { in: ids }, status: 'HELD' },
     data: { status: 'AVAILABLE', heldByUserId: null, holdExpiresAt: null },
   });
+
+  // Grouped per show — a room only cares about its own seats.
+  const byShow = new Map<string, string[]>();
+  for (const seat of expired) {
+    byShow.set(seat.showId, [...(byShow.get(seat.showId) ?? []), seat.id]);
+  }
+  for (const [showId, seatIds] of byShow) broadcastStatus(showId, seatIds, 'AVAILABLE');
+
   return count;
 }

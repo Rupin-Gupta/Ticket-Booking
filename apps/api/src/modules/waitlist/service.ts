@@ -5,6 +5,7 @@ import { ApiError } from '../../lib/errors.js';
 import { env } from '../../env.js';
 import { randomToken } from '../../lib/qr.js';
 import { writeBooking, toBookingView } from '../bookings/write.js';
+import { broadcastSeats, broadcastStatus } from '../../realtime/emit.js';
 
 type Caller = { sub: string; role: Role };
 
@@ -364,12 +365,13 @@ export async function acceptOffer(token: string, caller: Caller) {
         data: { status: 'CONVERTED', offerToken: null, offerExpiresAt: null },
       });
 
-      return created;
+      return { booking: created, showId: entry.showId, seatId: seat.id };
     },
     { maxWait: 15_000, timeout: 20_000 },
   );
 
-  return toBookingView(booking);
+  broadcastStatus(booking.showId, [booking.seatId], 'BOOKED');
+  return toBookingView(booking.booking);
 }
 
 /* ----------------------------------------------------------------- sweeping */
@@ -392,6 +394,7 @@ export async function sweepExpiredOffers(): Promise<{ expired: number; offers: P
   });
 
   const offers: PendingOffer[] = [];
+  const touched: { showId: string; showSeatId: string; status: 'OFFERED' | 'AVAILABLE' }[] = [];
 
   for (const entry of due) {
     // One transaction per seat. A single transaction over all of them would
@@ -418,6 +421,27 @@ export async function sweepExpiredOffers(): Promise<{ expired: number; offers: P
     );
 
     if (pending) offers.push(pending);
+
+    if (entry.offeredSeatId) {
+      const seat = await prisma.showSeat.findUnique({
+        where: { id: entry.offeredSeatId },
+        select: { showId: true, status: true },
+      });
+      if (seat && (seat.status === 'OFFERED' || seat.status === 'AVAILABLE')) {
+        touched.push({
+          showId: seat.showId,
+          showSeatId: entry.offeredSeatId,
+          status: seat.status,
+        });
+      }
+    }
+  }
+
+  // Offers that moved on: the new holder's seat stays OFFERED, and a seat with
+  // nobody left behind it goes back on sale. Both need announcing, because to
+  // every other viewer these changed without anyone clicking anything.
+  for (const seat of touched) {
+    broadcastSeats(seat.showId, [{ id: seat.showSeatId, status: seat.status }]);
   }
 
   return { expired: due.length, offers };
