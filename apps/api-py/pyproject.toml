@@ -43,8 +43,6 @@ packages = ["src/ticket_api"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-# Tests refuse to run against the production database; see config.active_database_url.
-env = ["NODE_ENV=test"]
 
 [tool.ruff]
 line-length = 100

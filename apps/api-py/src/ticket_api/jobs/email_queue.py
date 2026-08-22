@@ -20,7 +20,7 @@ from arq import create_pool
 from arq.connections import RedisSettings
 from sqlalchemy import select
 
-from ..config import settings
+from ..config import IS_TEST, settings
 from ..db import Session
 from ..lib.emails import (
     booking_cancelled_email,
@@ -73,6 +73,13 @@ async def enqueue_email(job: EmailJob) -> None:
     """
     global _pool
     subject = job.get("entryId") or job.get("bookingId")
+
+    # Tests never reach the real queue. REDIS_URL points at the live Upstash
+    # instance, and a suite that enqueues thousands of jobs there is the same
+    # mistake as one that writes to the production database — plus it made the
+    # booking tests fourteen times slower, one network round trip at a time.
+    if IS_TEST:
+        return
 
     redis_settings = _redis_settings()
     if redis_settings is None:

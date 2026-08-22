@@ -73,7 +73,11 @@ class CreateCategoryInput(BaseModel):
             parsed = Decimal(str(v))
         except (InvalidOperation, ValueError) as err:
             raise ValueError("Price must be a number >= 0") from err
-        if parsed < 0 or not parsed.is_finite():
+        # is_finite() FIRST, and not merely for tidiness: Decimal("NaN") parses
+        # happily, and then `parsed < 0` raises InvalidOperation rather than
+        # returning False — which surfaced as a 500 where the TypeScript's
+        # Number.isNaN check returned a clean 400.
+        if not parsed.is_finite() or parsed < 0:
             raise ValueError("Price must be a number >= 0")
         return str(v)
 

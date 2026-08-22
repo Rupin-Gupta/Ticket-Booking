@@ -1,0 +1,33 @@
+# Local Postgres for the test suite.
+#
+#   docker compose up -d db
+#   cd apps/api && alembic upgrade head   # with DATABASE_URL_TEST pointed here
+#
+# Tests refuse to run against the production database (see
+# config.active_database_url), so they need somewhere else to go. A container is
+# better than a second cloud project for this: no network latency, no free-tier
+# quota, and `docker compose down -v` gives a guaranteed-clean slate.
+#
+# Port 5433, not 5432, so this never collides with a Postgres someone already
+# has running locally.
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: ticket-booking-test-db
+    environment:
+      POSTGRES_USER: ticket
+      POSTGRES_PASSWORD: ticket
+      POSTGRES_DB: ticket_test
+    ports:
+      - '5433:5432'
+    # tmpfs, so the whole database lives in memory and vanishes with the
+    # container. Test data has no business surviving a reboot, and this makes
+    # the suite noticeably faster.
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ticket -d ticket_test']
+      interval: 2s
+      timeout: 3s
+      retries: 15

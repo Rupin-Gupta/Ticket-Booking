@@ -18,7 +18,7 @@ import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from sqlalchemy import ForeignKey, Integer, Numeric, Text
+from sqlalchemy import ForeignKey, Index, Integer, Numeric, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import ARRAY, ENUM, TIMESTAMP
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -160,6 +160,10 @@ class Venue(Base):
 
 class Seat(Base):
     __tablename__ = "Seat"
+    __table_args__ = (
+        # One physical chair per label per venue.
+        UniqueConstraint("venueId", "section", "row", "number", name="Seat_venue_label_key"),
+    )
 
     id: Mapped[str] = mapped_column(Text, primary_key=True, default=new_id)
     venue_id: Mapped[str] = mapped_column("venueId", Text, ForeignKey("Venue.id"))
@@ -191,6 +195,7 @@ class Event(Base):
 
 class SeatCategory(Base):
     __tablename__ = "SeatCategory"
+    __table_args__ = (UniqueConstraint("eventId", "name", name="SeatCategory_event_name_key"),)
 
     id: Mapped[str] = mapped_column(Text, primary_key=True, default=new_id)
     event_id: Mapped[str] = mapped_column("eventId", Text, ForeignKey("Event.id"))
@@ -219,6 +224,12 @@ class Show(Base):
 
 class ShowSeat(Base):
     __tablename__ = "ShowSeat"
+    __table_args__ = (
+        # Makes a double instantiation impossible rather than merely unlikely.
+        UniqueConstraint("showId", "seatId", name="ShowSeat_show_seat_key"),
+        # The seat map's only query shape: every seat in a show, by status.
+        Index("ShowSeat_showId_status_idx", "showId", "status"),
+    )
 
     id: Mapped[str] = mapped_column(Text, primary_key=True, default=new_id)
     show_id: Mapped[str] = mapped_column("showId", Text, ForeignKey("Show.id"))
@@ -242,6 +253,10 @@ class ShowSeat(Base):
 
 class Booking(Base):
     __tablename__ = "Booking"
+    __table_args__ = (
+        # Booking history: by customer, newest first.
+        Index("Booking_customerId_createdAt_idx", "customerId", "createdAt"),
+    )
 
     id: Mapped[str] = mapped_column(Text, primary_key=True, default=new_id)
     #: Human-facing, e.g. "BK-7F3K2".
@@ -263,6 +278,12 @@ class Booking(Base):
 
 class BookingSeat(Base):
     __tablename__ = "BookingSeat"
+    __table_args__ = (
+        UniqueConstraint("bookingId", "showSeatId", name="BookingSeat_booking_seat_key"),
+        Index("BookingSeat_showSeatId_idx", "showSeatId"),
+        # NOTE: the real seatbelt is a PARTIAL unique index that SQLAlchemy's
+        # declarative layer cannot express here — see the baseline migration.
+    )
 
     id: Mapped[str] = mapped_column(Text, primary_key=True, default=new_id)
     booking_id: Mapped[str] = mapped_column("bookingId", Text, ForeignKey("Booking.id"))
@@ -281,6 +302,10 @@ class BookingSeat(Base):
 
 class WaitlistEntry(Base):
     __tablename__ = "WaitlistEntry"
+    __table_args__ = (
+        # The FIFO queue pick: (show, category, WAITING) ordered by joinedAt.
+        Index("WaitlistEntry_queue_idx", "showId", "categoryId", "status", "joinedAt"),
+    )
 
     id: Mapped[str] = mapped_column(Text, primary_key=True, default=new_id)
     show_id: Mapped[str] = mapped_column("showId", Text, ForeignKey("Show.id"))
