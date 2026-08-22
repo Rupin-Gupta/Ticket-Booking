@@ -23,13 +23,13 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [x] Prisma schema written from `CLAUDE.md` (+ the `Show.bookings`
       back-relation it was missing), client generates
 - [x] `apps/api/.env.example` with every key, validated by `src/env.ts`
-- [ ] **Neon project created, `DATABASE_URL` + `DIRECT_URL` set** ← user action
+- [ ] **Supabase project created, `DATABASE_URL` + `DIRECT_URL` set** ← user action
 - [ ] **Upstash Redis created, `REDIS_URL` set** ← user action
 - [ ] `JWT_SECRET` generated (`openssl rand -base64 48`) ← user action
-- [ ] First migration applied (`npm run db:migrate`) — needs Neon first
+- [ ] First migration applied (`npm run db:migrate`) — needs Supabase first
 
 **Done when:** `npm run dev` starts both apps, `/health` returns 200, and
-`prisma migrate dev` applies cleanly against Neon.
+`prisma migrate dev` applies cleanly against Supabase.
 
 **Verified so far:** `npm run typecheck` clean across all three workspaces ·
 `/health` 200 with a config checklist · vite proxy reaches the API ·
@@ -134,7 +134,9 @@ bookings are excluded.
 
 - [ ] API → Render (env vars, build + start, worker process)
 - [ ] Web → Vercel (`VITE_API_URL`)
-- [ ] DB → Neon, migrations applied via `DIRECT_URL`
+- [ ] DB → Supabase, migrations applied via `DIRECT_URL`
+- [ ] **Daily keep-alive cron hitting the deployed `/health`** — Supabase pauses
+      a free project after 7 days of no queries and restoring it is manual
 - [ ] Smoke-test the full flow live: browse → hold → book → email → cancel → offer
 - [ ] Re-run the concurrency test against production
 - [ ] README: setup, `.env.example`, API docs, DB schema, hold + waitlist logic
@@ -160,6 +162,8 @@ device that never ran the project.
 ## Cross-cutting, do not let these slip
 
 - [ ] `.env` never committed; `.env.example` always current
+- [ ] `DATABASE_URL` on `:6543` with `?pgbouncer=true`, `DIRECT_URL` on `:5432`,
+      neither pointing at `db.<ref>.supabase.co`
 - [ ] `heldByUserId` never in a client payload
 - [ ] Both test suites green before every phase close
 - [ ] `docs/CONTEXT.md` updated at the end of every session

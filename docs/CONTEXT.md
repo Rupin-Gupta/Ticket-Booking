@@ -15,12 +15,57 @@ an entry here costs the next one twenty minutes of rediscovery.
 | **Phase**       | 0 — Foundations, scaffolding done                                                                                   |
 | **Runnable?**   | Yes. `npm install && npm run dev` → API on :4000, web on :5173. No database yet.                                    |
 | **Repo**        | Local git initialised. Remote `https://github.com/Rupin-Gupta/Ticket-Booking.git` — **not pushed yet, user pushes** |
-| **Blocked on**  | Three accounts, user action: Neon, Upstash, Resend                                                                  |
-| **Next action** | User creates Neon + Upstash, fills `apps/api/.env`, then `npm run db:migrate`. Phase 1 (auth) after that.           |
+| **Blocked on**  | Three accounts, user action: Supabase, Upstash, Resend                                                              |
+| **Next action** | User creates Supabase + Upstash, fills `apps/api/.env`, then `npm run db:migrate`. Phase 1 (auth) after that.       |
 
 `/health` reports which of database / redis / auth / email are still
 unconfigured, and the web placeholder renders that as a checklist — so the
 remaining setup is visible without reading code.
+
+---
+
+## 2026-08-22 — Session 3: database switched to Supabase
+
+**Decided by the user.** Neon (ADR-008) is out, Supabase is in — ADR-013
+supersedes it. The trade-off was put on the table first: Supabase pauses a free
+project after 7 days of no database activity and unpausing is manual, where Neon
+auto-wakes. The owner made the call; mitigation below is what makes it safe.
+
+**Changed**
+
+- `apps/api/.env.example`, `prisma/schema.prisma`, `README.md`,
+  `docs/ARCHITECTURE.md` §9, `CLAUDE.md` rule 14 — all now describe the
+  Supabase two-string setup and name the third string as banned.
+- `/health` now round-trips `SELECT 1` and reports `up` / `unreachable` /
+  `not-configured`. This is not decoration: it is the endpoint the daily
+  keep-alive hits, and a query is the only thing that resets Supabase's 7-day
+  idle timer. Prisma is imported dynamically inside the handler so the API
+  still boots with no `DATABASE_URL`.
+- `docs/DEBUGGING.md` — three new traps: the 7-day pause, the IPv6-only direct
+  string that works locally and fails on Render, and
+  `prepared statement "s0" already exists` when `?pgbouncer=true` is missing.
+- Phase 8 in `docs/TODO.md` now carries the keep-alive cron as a real task.
+- ADR-003's reasoning was corrected while nearby: `pg_cron` **is** available on
+  Supabase, so the reason not to use it is no longer availability — it is that
+  offer expiry has to call `advanceWaitlist()`, TypeScript with an email
+  enqueue attached, which a SQL job would have to reimplement out of reach of
+  every test.
+
+**The rules that now matter**
+
+| Variable       | String                 | Port   | For                               |
+| -------------- | ---------------------- | ------ | --------------------------------- |
+| `DATABASE_URL` | Transaction pooler     | `6543` | The app. Needs `?pgbouncer=true`. |
+| `DIRECT_URL`   | Session pooler         | `5432` | `prisma migrate` only             |
+| —              | `db.<ref>.supabase.co` | —      | **Never.** IPv6-only.             |
+
+**Not done, flagged**
+
+Local Postgres in Docker for development and the concurrency test was offered
+and not taken up. It matters more now than it did with Neon: 20 parallel hold
+requests through a hosted transaction pooler is slower and less deterministic
+than the same test against a local container, and every test run is also
+database activity on a free project. Revisit before Phase 3.
 
 ---
 
@@ -37,7 +82,7 @@ remaining setup is visible without reading code.
 - `src/env.ts`: zod-validated env using Node's native `process.loadEnvFile()`
   — no dotenv dependency. Infra vars are optional at boot with a `requireEnv()`
   helper, so a fresh clone runs before any account exists.
-- Prisma schema written out from `CLAUDE.md`, with `directUrl` wired for Neon.
+- Prisma schema written out from `CLAUDE.md`, with `directUrl` wired for the host.
 - `packages/shared`: enums, `SeatView` (no `heldByUserId`, by construction),
   `ApiErrorBody`, socket event names.
 - Web: Vite + React 19 + react-router, fetch wrapper with `ApiClientError`,
@@ -72,7 +117,7 @@ data. Logged in `docs/DEBUGGING.md`; recheck at Phase 8.
 
 **Next session starts with**
 
-`npm run db:migrate` once Neon is up, then Phase 1 — Argon2id, JWT, role
+`npm run db:migrate` once Supabase is up, then Phase 1 — Argon2id, JWT, role
 middleware, seed script.
 
 ---

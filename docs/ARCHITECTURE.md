@@ -24,7 +24,7 @@ mechanisms. When the two disagree, `CLAUDE.md` wins and this file gets fixed.
                       ▼          ▼          ▼
               ┌────────────┐ ┌────────┐ ┌──────────┐
               │ PostgreSQL │ │ Redis  │ │ Resend   │
-              │  (Neon)    │ │(Upstash)│ │  email   │
+              │ (Supabase) │ │(Upstash)│ │  email   │
               │ SOURCE OF  │ │ queues │ └──────────┘
               │   TRUTH    │ │ + s.io │
               └────────────┘ │ adapter│
@@ -346,12 +346,28 @@ event). Role alone lets any organiser read any other organiser's revenue.
 
 ## 9. Environment split
 
-Neon needs two connection strings and mixing them up is the classic
-"works locally, breaks on deploy" failure:
+Supabase hands out three connection strings. Two are used, one is banned, and
+mixing them up is the classic "works locally, breaks on deploy" failure:
 
-- `DATABASE_URL` — pooled (`-pooler` host), used by the running app.
-- `DIRECT_URL` — unpooled, used by `prisma migrate` only. Migrations take
-  advisory locks that a connection pooler mangles.
+- `DATABASE_URL` — **transaction** pooler, port `6543`, with `?pgbouncer=true`.
+  Used by the running app. Transaction mode holds a connection for the lifetime
+  of a transaction, so `BEGIN … FOR UPDATE … COMMIT` locks a seat exactly as it
+  would on a direct connection. `pgbouncer=true` is mandatory: it turns off
+  prepared statements, which the pooler cannot support and Prisma uses by
+  default.
+- `DIRECT_URL` — **session** pooler, port `5432`, same host. Used by
+  `prisma migrate` only. Migrations take advisory locks, which are session
+  state, and transaction mode discards session state between statements.
+- `db.<ref>.supabase.co` — **never used.** It is IPv6-only without the paid
+  IPv4 add-on, so it connects from a laptop and fails from Render.
+
+### Keeping the database awake
+
+Supabase pauses a free project after **7 days with no database activity**, and
+restoring it is a manual click. `/health` therefore round-trips a `SELECT 1`,
+and a daily cron against the deployed `/health` resets the timer. That ping is
+load-bearing for a submission that sits idle between being sent and being
+graded — dashboard visits do not count, only queries do.
 
 Everything else configurable rather than hard-coded: `HOLD_TTL_SECONDS`,
 `OFFER_TTL_SECONDS`, `SWEEPER_INTERVAL_MS`, `MAX_SEATS_PER_HOLD`,

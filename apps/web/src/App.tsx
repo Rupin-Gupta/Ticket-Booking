@@ -6,6 +6,7 @@ type Health = {
   env: string;
   uptimeSeconds: number;
   configured: Record<string, boolean>;
+  database: 'up' | 'unreachable' | 'not-configured';
 };
 
 /**
@@ -43,7 +44,15 @@ export function App() {
               <li key={name} className={ready ? 'ok' : 'todo'}>
                 <span aria-hidden="true">{ready ? '●' : '○'}</span>
                 {name}
-                <em>{ready ? 'configured' : 'not configured'}</em>
+                <em>
+                  {name === 'database' && ready
+                    ? health.database === 'up'
+                      ? 'connected'
+                      : 'configured, unreachable'
+                    : ready
+                      ? 'configured'
+                      : 'not configured'}
+                </em>
               </li>
             ))}
           </ul>

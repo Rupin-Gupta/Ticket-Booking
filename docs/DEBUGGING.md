@@ -30,13 +30,25 @@ time, _then_ debug it.
 These are known before they happen. Each one is a documented afternoon someone
 else has already lost.
 
-### Prisma migrate hangs or errors against Neon
+### The hosted app is dead a week after you last touched it
 
-**Symptom:** `prisma migrate dev` hangs, or `advisory lock` / prepared-statement
-errors.
-**Cause:** running migrations through the pooled connection string.
-**Fix:** `DATABASE_URL` = pooled (`-pooler` in the host) for the app,
-`DIRECT_URL` = unpooled for migrations. Both in `schema.prisma`:
+**Symptom:** the deployed URL returns database errors; Supabase dashboard shows
+the project as paused.
+**Cause:** Supabase pauses a free project after **7 days with no database
+activity**. Visiting the dashboard does not count — only queries do.
+**Fix:** restore it manually from the dashboard (~30s), then make sure the daily
+keep-alive is actually running. `/health` round-trips a `SELECT 1` precisely so
+a cron ping counts as activity. **Check this before submitting or demoing.**
+
+### Prisma migrate hangs or errors against Supabase
+
+**Symptom:** `prisma migrate dev` hangs, or errors about advisory locks or
+prepared statements.
+**Cause:** running migrations through the **transaction** pooler (port 6543).
+Migrations take advisory locks, which are session state, and transaction mode
+throws session state away between statements.
+**Fix:** `DATABASE_URL` = transaction pooler `:6543?pgbouncer=true` for the app,
+`DIRECT_URL` = session pooler `:5432` for migrations. Both in `schema.prisma`:
 
 ```prisma
 datasource db {
@@ -45,6 +57,24 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 ```
+
+### Works from the laptop, cannot connect from Render
+
+**Symptom:** `P1001: Can't reach database server` on Render only; the exact same
+connection string works locally.
+**Cause:** using Supabase's third connection string, the direct one on
+`db.<ref>.supabase.co`. It is IPv6-only without the paid IPv4 add-on.
+**Fix:** neither `DATABASE_URL` nor `DIRECT_URL` may point at it. Both use the
+`aws-0-<region>.pooler.supabase.com` host — 6543 for the app, 5432 for
+migrations.
+
+### `prepared statement "s0" already exists`
+
+**Symptom:** intermittent Prisma errors under any real concurrency, only in
+production.
+**Cause:** `?pgbouncer=true` missing from `DATABASE_URL`. The transaction pooler
+cannot support prepared statements, and Prisma uses them by default.
+**Fix:** add `?pgbouncer=true` to the pooled string. It is not optional.
 
 ### Concurrency test passes but the race is real
 

@@ -58,8 +58,10 @@ _Alternative:_ a per-seat `setTimeout` scheduled at hold time, or a Postgres
 `pg_cron` job.
 
 _Why not:_ `setTimeout` dies with the process and does not exist on the second
-instance. `pg_cron` is not available on Neon's free tier and puts business logic
-somewhere no test can reach it.
+instance. `pg_cron` **is** available on Supabase, but expiring an offer means
+calling `advanceWaitlist()` — TypeScript, with the email enqueue attached — so a
+SQL-only job would have to reimplement half of it in PL/pgSQL, in a place no
+test can reach and the code review never sees.
 
 _What this buys:_ if every background job is dead, the system is still correct —
 no seat is ever permanently locked by an abandoned checkout. The sweeper only
@@ -131,7 +133,8 @@ substituted, the 72-byte cap must be enforced explicitly rather than relied on.
 
 ## ADR-008 — Neon over Render Postgres and Supabase
 
-**Accepted** · 2026-08-22
+**Superseded by [ADR-013](#adr-013--supabase-as-the-database) · 2026-08-22** —
+kept for the reasoning about Render Postgres, which still stands.
 
 Database is Neon free tier, with `DATABASE_URL` (pooled) for the app and
 `DIRECT_URL` (unpooled) for migrations.
@@ -217,3 +220,44 @@ _Why it is logged:_ `CLAUDE.md` calls its schema authoritative, so a silent
 divergence between it and `prisma/schema.prisma` is exactly the kind of drift
 that costs an hour later. `Booking.@@index([customerId, createdAt])` was added
 at the same time — booking history is queried by customer, newest first.
+
+---
+
+## ADR-013 — Supabase as the database
+
+**Accepted** · 2026-08-22 · supersedes [ADR-008](#adr-008--neon-over-render-postgres-and-supabase)
+
+Database is Supabase free tier. `DATABASE_URL` is the **transaction** pooler
+(port 6543, `?pgbouncer=true`) for the app; `DIRECT_URL` is the **session**
+pooler (port 5432, same host) for `prisma migrate`.
+
+_Chosen by:_ the repo owner, after the trade-off below was put on the table.
+
+_What it costs:_ Supabase pauses a free project after **7 days with no database
+activity**, and bringing it back is a manual restore from the dashboard. Waking
+takes ~30 seconds after that. For a project that gets submitted and then graded
+whenever the evaluator gets to it, an idle week is realistic.
+
+_Mitigation, and it is not optional:_ `/health` now round-trips a `SELECT 1`, so
+any daily ping counts as database activity and resets the 7-day timer. A GitHub
+Actions cron hitting the deployed `/health` once a day is enough. This lands in
+Phase 8 with the deploy, and it is the difference between a working submission
+and a dead one. Note that dashboard visits do **not** count — only queries do.
+
+_What it buys:_ Supabase's own dashboard and SQL editor are genuinely better for
+demonstrating the schema and inspecting seat state live during a walkthrough,
+and the project is one place rather than a database plus a separate console.
+
+_Why the third connection string is banned:_ Supabase also offers a direct
+connection on `db.<ref>.supabase.co`. It is IPv6-only without the paid IPv4
+add-on, so it works from a laptop and fails from Render. Neither `DATABASE_URL`
+nor `DIRECT_URL` may point at it.
+
+_Why the transaction pooler is safe for seat locking:_ transaction mode assigns
+a connection for the lifetime of a transaction, so `BEGIN … SELECT … FOR UPDATE
+… COMMIT` holds its lock exactly as it would on a direct connection. What
+transaction mode discards is session state between transactions — which is why
+migrations, whose advisory locks are session state, need the session pooler.
+
+_Still true from ADR-008:_ Render's free Postgres expires after 30 days and is
+not an option for this project.

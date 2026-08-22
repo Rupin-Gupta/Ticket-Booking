@@ -19,7 +19,7 @@ every confirmed booking sends an email with a QR code ticket.
 
 - **Backend:** Node.js + TypeScript + Express, deployed on Render
 - **Frontend:** React + TypeScript + Vite, deployed on Vercel
-- **Database:** PostgreSQL via Prisma ORM, hosted on Neon (free tier, no expiry)
+- **Database:** PostgreSQL via Prisma ORM, hosted on Supabase (free tier)
 - **Queue / cache:** Redis via Upstash + BullMQ — sweepers + email jobs
 - **Realtime:** Socket.IO, rooms keyed `show:{showId}`
 - **Auth:** JWT + bcrypt, roles `CUSTOMER` / `ORGANISER` / `ADMIN`
@@ -28,7 +28,8 @@ every confirmed booking sends an email with a QR code ticket.
 - **Repo layout:** npm workspaces monorepo — `apps/api`, `apps/web`, `packages/shared`
 
 Render's free Postgres expires after 30 days — never use it for this project.
-Neon's free tier has no expiry, which is why it's the pick.
+Supabase is the pick (ADR-013); its free tier pauses after 7 days of no
+database activity, which the daily `/health` keep-alive is there to prevent.
 
 ## Non-negotiable architectural rules
 
@@ -84,9 +85,14 @@ Neon's free tier has no expiry, which is why it's the pick.
     from `req`.** Tagged-template `$queryRaw` (used everywhere in this
     project) auto-parameterizes and is injection-safe; those two escape
     hatches are not.
-14. **Neon needs two connection strings**: `DATABASE_URL` (pooled) for the
-    app, `DIRECT_URL` (unpooled) for `prisma migrate` only. Mixing them up
-    is the most common "works locally, breaks on deploy" bug with this stack.
+14. **Supabase needs two connection strings, and there is a third that must
+    never be used.** `DATABASE_URL` = transaction pooler, `:6543`, and it
+    must carry `?pgbouncer=true`. `DIRECT_URL` = session pooler, `:5432`,
+    for `prisma migrate` only. The direct `db.<ref>.supabase.co` string is
+    IPv6-only and unreachable from Render — never point either variable at
+    it. Also: the free project **pauses after 7 days of no queries** and
+    needs a manual restore, so the daily `/health` ping is load-bearing, not
+    a nicety.
 15. **Wire `@socket.io/redis-adapter` before assuming realtime works beyond
     one instance.** Without it, broadcasts don't cross process boundaries —
     silently drops updates the moment Render runs more than one instance.
@@ -315,7 +321,7 @@ Work through these in order — don't jump ahead. Full detail (task-by-task
 checklists, per-phase Claude Code tips) is in the architecture doc; this is
 the index.
 
-0. **Foundations** — monorepo, TS/lint config, Neon + Prisma init, Express +
+0. **Foundations** — monorepo, TS/lint config, Supabase + Prisma init, Express +
    Vite skeletons, `.env.example`, first commit.
 1. **Auth & roles** — User model, register/login, JWT + role middleware.
 2. **Venues, events & shows** — admin/organiser CRUD, `instantiateShowSeats()`.
@@ -330,7 +336,7 @@ the index.
    retire polling.
 7. **Organiser dashboard & polish** — revenue summary, seat map visuals,
    countdown timer, loading/error states.
-8. **Deploy, document, verify** — Vercel + Render + Neon, smoke-test live,
+8. **Deploy, document, verify** — Vercel + Render + Supabase, smoke-test live,
    README, `SYSTEM_DESIGN.md`, re-run the concurrency test against prod.
 9. **Hardening & standing out** _(optional, do it if time allows)_ — seed
    script, Dockerfile + docker-compose, graceful shutdown, structured
@@ -340,6 +346,6 @@ the index.
 
 ## Current phase
 
-`Phase 0 — scaffolding done and verified. Blocked on user creating Neon +
+`Phase 0 — scaffolding done and verified. Blocked on user creating Supabase +
 Upstash and filling apps/api/.env; then run npm run db:migrate and start
 Phase 1 (auth). Full detail in docs/CONTEXT.md.`
