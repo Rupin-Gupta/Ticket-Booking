@@ -18,11 +18,15 @@ from .config import ALLOWED_ORIGINS, CONFIGURED, IS_PROD, settings
 from .db import ping
 from .errors import ApiError
 from .modules.auth.routes import router as auth_router
+from .modules.bookings.routes import router as booking_router
+from .modules.bookings.routes import verify_router
 from .modules.events.routes import event_router
 from .modules.events.routes import show_router as event_show_router
 from .modules.seats.routes import hold_router
 from .modules.seats.routes import show_router as seat_show_router
 from .modules.venues.routes import router as venue_router
+from .modules.waitlist.routes import router as waitlist_router
+from .modules.waitlist.routes import show_router as waitlist_show_router
 
 _STARTED = time.monotonic()
 
@@ -150,6 +154,10 @@ def create_app() -> FastAPI:
     # they mount a second router on the same /shows prefix.
     app.include_router(seat_show_router, prefix="/api/v1")
     app.include_router(hold_router, prefix="/api/v1")
+    app.include_router(waitlist_show_router, prefix="/api/v1")
+    app.include_router(waitlist_router, prefix="/api/v1")
+    app.include_router(booking_router, prefix="/api/v1")
+    app.include_router(verify_router, prefix="/api/v1")
 
     @app.api_route(
         "/{path:path}",
