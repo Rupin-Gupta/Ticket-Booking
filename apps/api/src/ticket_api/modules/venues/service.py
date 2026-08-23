@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 
 from psycopg.errors import UniqueViolation
-from sqlalchemy import distinct, func, select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,6 +17,7 @@ from .schemas import (
     SeatBlockResult,
     SeatCount,
     SeatOut,
+    SectionOut,
     UpdateVenueInput,
     VenueBase,
     VenueDetail,
@@ -221,17 +222,21 @@ async def _outermost_radius(session: AsyncSession, venue_id: str) -> float:
     return max(math.hypot(float(x), float(y)) for x, y in seats)
 
 
-async def list_sections(venue_id: str) -> list[str]:
-    """Distinct section names in a venue — what a category is allowed to claim."""
+async def list_sections(venue_id: str) -> list[SectionOut]:
+    """
+    Sections in a venue with their seat counts — what a category may claim, and
+    how many seats a price will cover.
+
+    The count matters: pricing a section blind is how an organiser discovers at
+    show-creation time that "Balcony" was four hundred seats.
+    """
     async with Session() as session:
-        return list(
-            (
-                await session.execute(
-                    select(distinct(Seat.section))
-                    .where(Seat.venue_id == venue_id)
-                    .order_by(Seat.section.asc())
-                )
+        rows = (
+            await session.execute(
+                select(Seat.section, func.count(Seat.id))
+                .where(Seat.venue_id == venue_id)
+                .group_by(Seat.section)
+                .order_by(Seat.section.asc())
             )
-            .scalars()
-            .all()
-        )
+        ).all()
+    return [SectionOut(name=name, seatCount=int(count)) for name, count in rows]
