@@ -315,6 +315,18 @@ cannot express, so autogenerate sees an object it does not know about.
 proposes removing it, that is drift — delete the proposal, not the index. Same
 trap Prisma had; only the tool changed.
 
+### A future autogenerate will also try to drop the venue overlap constraint
+
+**Symptom:** after an `alembic revision --autogenerate`, two shows can be
+scheduled in one venue at overlapping times.
+**Cause:** `show_no_venue_overlap` is a GiST **exclusion constraint**. SQLAlchemy
+cannot represent one, so it does not appear in the models and autogenerate
+proposes removing it as drift.
+**Fix:** it belongs in the `show_no_venue_overlap` migration and nowhere else.
+Delete the proposal, not the constraint. Note `tsrange`, not `tstzrange` — the
+columns are `TIMESTAMP(3)` **without** time zone, and the range type has to match
+the column type or the constraint will not build at all.
+
 ### Tests were writing to the production Redis queue
 
 **Symptom:** the booking tests took 11.85s where every other file took under one.
