@@ -1382,7 +1382,15 @@ def downgrade() -> None:
 In `apps/api/tests/conftest.py`, inside `make_show`, replace the `Show(...)` construction:
 
 ```python
-            starts_at = utcnow() + timedelta(days=30)
+            # Pinned to a fixed hour, NOT the current wall-clock time.
+            # Corrected during execution: an unpinned time made the
+            # venue-scheduling tests fail for a few hours every afternoon,
+            # because this fixture's own background show collided with the fixed
+            # hours those tests book. 09:00 + 120min + 15min turnaround = clear
+            # by 11:15, well before the 18:00-21:00 band they use.
+            starts_at = (utcnow() + timedelta(days=30)).replace(
+                hour=9, minute=0, second=0, microsecond=0
+            )
             ends_at, occupies_until = occupied_window(
                 starts_at=starts_at,
                 duration_minutes=120,
@@ -2217,16 +2225,16 @@ async def release_holds(show_id: str, user_id: str) -> ReleaseResult:
         )
         await session.commit()
 
-    # Others should see them free the moment the grace elapses, so announce the
-    # status they will have — not the status they have right now.
-    loop = asyncio.get_running_loop()
-    loop.call_later(
-        settings.RELEASE_GRACE_SECONDS,
-        broadcast_status,
-        show_id,
-        list(ids),
-        SeatStatus.AVAILABLE.value,
-    )
+    # Others should see them free once the grace elapses. The callback must
+    # RE-READ the seats at fire time and broadcast their real effective status —
+    # it must NOT capture a fixed AVAILABLE payload.
+    #
+    # Corrected during execution: the fixed-payload version was deterministically
+    # wrong. Release schedules T+15s; the customer calls extend_hold at T+3s and
+    # the row is correctly restored to a 300-second hold; the stale callback then
+    # fires anyway and tells every viewer the seat is free. Re-reading is what the
+    # sweeper already does, and is why the sweeper never had this bug.
+    _schedule_status_rebroadcast(show_id, list(ids))
 
     return ReleaseResult(released=len(ids), freeAt=iso(free_at) or "")
 
