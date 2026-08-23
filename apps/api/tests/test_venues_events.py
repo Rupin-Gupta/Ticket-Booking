@@ -264,7 +264,7 @@ async def test_a_show_cannot_be_created_before_every_section_is_priced(
 
     r = await client.post(
         f"{EVENTS}/{event}/shows",
-        json={"startsAt": (utcnow() + timedelta(days=5)).isoformat()},
+        json={"startsAt": (utcnow() + timedelta(days=5)).isoformat(), "durationMinutes": 120},
         headers=auth(organiser[1]),
     )
     assert r.status_code == 400
@@ -277,7 +277,7 @@ async def test_creating_a_show_instantiates_one_seat_per_venue_seat(client, auth
     show = await make_show(seats=4)
     r = await client.post(
         f"{EVENTS}/{show['event_id']}/shows",
-        json={"startsAt": (utcnow() + timedelta(days=6)).isoformat()},
+        json={"startsAt": (utcnow() + timedelta(days=6)).isoformat(), "durationMinutes": 120},
         headers=auth(show["organiser_token"]),
     )
     assert r.status_code == 201, r.text

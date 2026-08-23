@@ -21,6 +21,7 @@ from ...models import (
     utcnow,
 )
 from ...security import TokenPayload
+from ..venues.scheduling import occupied_window
 from .schemas import (
     CategoryOut,
     CreateCategoryInput,
@@ -362,12 +363,29 @@ async def create_category(
 async def create_show(event_id: str, data: CreateShowInput, caller: TokenPayload) -> ShowCreated:
     async with Session() as session:
         event = await _assert_owns(session, event_id, caller)
-        venue_id = event.venue_id
+        venue = (
+            (await session.execute(select(Venue).where(Venue.id == event.venue_id))).scalars().one()
+        )
+        venue_id = venue.id
+        turnaround = venue.turnaround_minutes
+
+    ends_at, occupies_until = occupied_window(
+        starts_at=data.startsAt,
+        duration_minutes=data.durationMinutes,
+        turnaround_minutes=turnaround,
+    )
 
     # One transaction: a show whose seats failed to generate is worse than no
     # show at all — it renders as a bookable date with an empty seat map.
     async with transaction() as session:
-        show = Show(event_id=event_id, starts_at=data.startsAt)
+        show = Show(
+            event_id=event_id,
+            venue_id=venue_id,
+            starts_at=data.startsAt,
+            duration_minutes=data.durationMinutes,
+            ends_at=ends_at,
+            occupies_until=occupies_until,
+        )
         session.add(show)
         await session.flush()
 

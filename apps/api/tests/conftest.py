@@ -39,6 +39,7 @@ from ticket_api.models import (  # noqa: E402
     Venue,
     utcnow,
 )
+from ticket_api.modules.venues.scheduling import occupied_window  # noqa: E402
 from ticket_api.security import hash_password, sign_access_token  # noqa: E402
 
 # Order matters: children before parents, or the foreign keys refuse.
@@ -199,7 +200,20 @@ def make_show() -> Callable[..., object]:
             category = SeatCategory(
                 event_id=event.id, name=section, price=price, sections=[section]
             )
-            show = Show(event_id=event.id, starts_at=utcnow() + timedelta(days=30))
+            starts_at = utcnow() + timedelta(days=30)
+            ends_at, occupies_until = occupied_window(
+                starts_at=starts_at,
+                duration_minutes=120,
+                turnaround_minutes=venue.turnaround_minutes,
+            )
+            show = Show(
+                event_id=event.id,
+                venue_id=venue.id,
+                starts_at=starts_at,
+                duration_minutes=120,
+                ends_at=ends_at,
+                occupies_until=occupies_until,
+            )
             session.add_all([category, show])
             await session.flush()
 
