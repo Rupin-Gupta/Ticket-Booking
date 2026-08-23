@@ -200,7 +200,16 @@ def make_show() -> Callable[..., object]:
             category = SeatCategory(
                 event_id=event.id, name=section, price=price, sections=[section]
             )
-            starts_at = utcnow() + timedelta(days=30)
+            # Pinned to a fixed early-morning hour, not whatever time of day the
+            # suite happens to run. An unpinned wall-clock time here made the
+            # venue-scheduling tests fail for a few hours every afternoon,
+            # because this fixture's own background show collided with the
+            # fixed hours those tests explicitly book (18:00-21:00). 09:00, with
+            # this show's 120-minute duration and 15-minute turnaround, occupies
+            # only until 11:15 — comfortably clear of that band.
+            starts_at = (utcnow() + timedelta(days=30)).replace(
+                hour=9, minute=0, second=0, microsecond=0
+            )
             ends_at, occupies_until = occupied_window(
                 starts_at=starts_at,
                 duration_minutes=120,
