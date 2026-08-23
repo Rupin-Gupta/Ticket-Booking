@@ -125,8 +125,9 @@ def test_end_stage_centres_every_row_on_zero():
     four = generate_end_stage_block(rows=1, seats_per_row=4, start_y=0)
     six = generate_end_stage_block(rows=1, seats_per_row=6, start_y=0)
     assert sum(s.pos_x for s in four) == 0
-    assert sum(s.pos_y for s in six) == 0 or True  # posY is the offset, not centred
     assert sum(s.pos_x for s in six) == 0
+    # pos_y is the row offset, not something centred — one row means one value.
+    assert {s.pos_y for s in six} == {0}
 
 
 def test_end_stage_start_y_offsets_every_row():
