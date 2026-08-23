@@ -95,6 +95,11 @@ class EventType(enum.StrEnum):
     CONCERT = "CONCERT"
 
 
+class StageLayout(enum.StrEnum):
+    END_STAGE = "END_STAGE"  # audience faces one way, like a cinema
+    CENTRE_STAGE = "CENTRE_STAGE"  # in the round, audience surrounds the stage
+
+
 class SeatStatus(enum.StrEnum):
     AVAILABLE = "AVAILABLE"
     HELD = "HELD"
@@ -153,6 +158,21 @@ class Venue(Base):
     id: Mapped[str] = mapped_column(Text, primary_key=True, default=new_id)
     name: Mapped[str] = mapped_column(Text)
     address: Mapped[str] = mapped_column(Text)
+
+    #: Admin-owned capabilities. An organiser books a venue; it does not book them.
+    stage_layout: Mapped[StageLayout] = mapped_column(
+        "stageLayout", pg_enum(StageLayout, "StageLayout"), default=StageLayout.END_STAGE
+    )
+    #: Which event types may be scheduled here. A CENTRE_STAGE venue may not
+    #: allow MOVIE — nobody projects a film in the round.
+    allowed_event_types: Mapped[list[EventType]] = mapped_column(
+        "allowedEventTypes",
+        ARRAY(pg_enum(EventType, "EventType")),
+        default=lambda: [EventType.MOVIE, EventType.CONCERT],
+    )
+    #: Minutes the room stays unavailable after a show ends, for clearing and
+    #: resetting. A stadium needs longer than a screening room.
+    turnaround_minutes: Mapped[int] = mapped_column("turnaroundMinutes", Integer, default=15)
 
     seats: Mapped[list[Seat]] = relationship(back_populates="venue")
     events: Mapped[list[Event]] = relationship(back_populates="venue")
@@ -338,6 +358,7 @@ __all__ = [
     "SeatStatus",
     "Show",
     "ShowSeat",
+    "StageLayout",
     "User",
     "Venue",
     "WaitlistEntry",

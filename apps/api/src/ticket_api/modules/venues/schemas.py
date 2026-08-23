@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from ...models import EventType, StageLayout
+
 
 def _trim(v: object) -> object:
     return v.strip() if isinstance(v, str) else v
@@ -12,6 +14,14 @@ class CreateVenueInput(BaseModel):
 
     name: str = Field(min_length=1, max_length=120)
     address: str = Field(min_length=1, max_length=240)
+    stageLayout: StageLayout = StageLayout.END_STAGE  # noqa: N815 - wire format
+    # At least one, or the venue can host nothing at all.
+    allowedEventTypes: list[EventType] = Field(  # noqa: N815 - wire format
+        default_factory=lambda: [EventType.MOVIE, EventType.CONCERT], min_length=1
+    )
+    # Long enough to clear and reset the room. Capped at four hours because
+    # beyond that the organiser wants a different day, not a longer gap.
+    turnaroundMinutes: int = Field(default=15, ge=0, le=240)  # noqa: N815 - wire format
 
     _normalise = field_validator("name", "address", mode="before")(_trim)
 
@@ -21,6 +31,11 @@ class UpdateVenueInput(BaseModel):
 
     name: str | None = Field(default=None, min_length=1, max_length=120)
     address: str | None = Field(default=None, min_length=1, max_length=240)
+    stageLayout: StageLayout | None = None  # noqa: N815 - wire format
+    allowedEventTypes: list[EventType] | None = Field(  # noqa: N815 - wire format
+        default=None, min_length=1
+    )
+    turnaroundMinutes: int | None = Field(default=None, ge=0, le=240)  # noqa: N815 - wire format
 
     _normalise = field_validator("name", "address", mode="before")(_trim)
 
@@ -82,6 +97,9 @@ class VenueSummary(BaseModel):
     id: str
     name: str
     address: str
+    stageLayout: StageLayout  # noqa: N815 - wire format
+    allowedEventTypes: list[EventType]  # noqa: N815 - wire format
+    turnaroundMinutes: int  # noqa: N815 - wire format
     count: SeatCount = Field(alias="_count")
 
 
@@ -89,6 +107,9 @@ class VenueDetail(BaseModel):
     id: str
     name: str
     address: str
+    stageLayout: StageLayout  # noqa: N815 - wire format
+    allowedEventTypes: list[EventType]  # noqa: N815 - wire format
+    turnaroundMinutes: int  # noqa: N815 - wire format
     seats: list[SeatOut]
 
 
@@ -96,6 +117,9 @@ class VenueBase(BaseModel):
     id: str
     name: str
     address: str
+    stageLayout: StageLayout  # noqa: N815 - wire format
+    allowedEventTypes: list[EventType]  # noqa: N815 - wire format
+    turnaroundMinutes: int  # noqa: N815 - wire format
 
 
 class VenueListResult(BaseModel):

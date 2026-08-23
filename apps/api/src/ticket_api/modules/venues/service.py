@@ -6,7 +6,7 @@ from sqlalchemy.exc import IntegrityError
 
 from ...db import Session
 from ...errors import ApiError
-from ...models import Seat, Venue
+from ...models import EventType, Seat, StageLayout, Venue
 from .schemas import (
     AddSeatBlockInput,
     CreateVenueInput,
@@ -22,6 +22,32 @@ from .schemas import (
 ROW_LABELS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 
+def _assert_capabilities_coherent(stage_layout: StageLayout, allowed: list[EventType]) -> None:
+    """
+    A centre-stage venue may not allow MOVIE.
+
+    Nobody projects a film in the round, and refusing it here beats discovering
+    it when a cinema's seat map renders as a circle.
+    """
+    if stage_layout is StageLayout.CENTRE_STAGE and EventType.MOVIE in allowed:
+        raise ApiError.bad_request(
+            "CENTRE_STAGE_CANNOT_SHOW_MOVIES",
+            "A centre-stage venue surrounds the stage, so it cannot host a film. "
+            "Allow CONCERT only, or use END_STAGE.",
+        )
+
+
+def _venue_base(venue: Venue) -> VenueBase:
+    return VenueBase(
+        id=venue.id,
+        name=venue.name,
+        address=venue.address,
+        stageLayout=venue.stage_layout,
+        allowedEventTypes=list(venue.allowed_event_types),
+        turnaroundMinutes=venue.turnaround_minutes,
+    )
+
+
 async def list_venues() -> list[VenueSummary]:
     async with Session() as session:
         rows = (
@@ -34,7 +60,13 @@ async def list_venues() -> list[VenueSummary]:
         ).all()
     return [
         VenueSummary(
-            id=venue.id, name=venue.name, address=venue.address, count=SeatCount(seats=seats)
+            id=venue.id,
+            name=venue.name,
+            address=venue.address,
+            stageLayout=venue.stage_layout,
+            allowedEventTypes=list(venue.allowed_event_types),
+            turnaroundMinutes=venue.turnaround_minutes,
+            count=SeatCount(seats=seats),
         )
         for venue, seats in rows
     ]
@@ -62,35 +94,57 @@ async def get_venue(venue_id: str) -> VenueDetail:
         id=venue.id,
         name=venue.name,
         address=venue.address,
+        stageLayout=venue.stage_layout,
+        allowedEventTypes=list(venue.allowed_event_types),
+        turnaroundMinutes=venue.turnaround_minutes,
         seats=[SeatOut.model_validate(s) for s in seats],
     )
 
 
 async def create_venue(data: CreateVenueInput) -> VenueBase:
-    venue = Venue(name=data.name, address=data.address)
+    _assert_capabilities_coherent(data.stageLayout, data.allowedEventTypes)
+    venue = Venue(
+        name=data.name,
+        address=data.address,
+        stage_layout=data.stageLayout,
+        allowed_event_types=data.allowedEventTypes,
+        turnaround_minutes=data.turnaroundMinutes,
+    )
     async with Session() as session:
         session.add(venue)
         await session.commit()
         await session.refresh(venue)
-    return VenueBase(id=venue.id, name=venue.name, address=venue.address)
+    return _venue_base(venue)
 
 
 async def update_venue(venue_id: str, data: UpdateVenueInput) -> VenueBase:
-    # Drop keys the client omitted. A PATCH body that left out `address` must
-    # not blank it — "absent" and "explicitly null" are different requests.
-    changes = data.model_dump(exclude_none=True)
-
     async with Session() as session:
         venue = (await session.execute(select(Venue).where(Venue.id == venue_id))).scalars().first()
         if venue is None:  # 404 before anything else
             raise ApiError.not_found("VENUE_NOT_FOUND", "No venue with that id.")
 
-        for key, value in changes.items():
-            setattr(venue, key, value)
+        # Merge BEFORE checking, so changing only one half of the pair cannot
+        # produce an incoherent venue.
+        _assert_capabilities_coherent(
+            data.stageLayout or venue.stage_layout,
+            data.allowedEventTypes or list(venue.allowed_event_types),
+        )
+
+        if data.name is not None:
+            venue.name = data.name
+        if data.address is not None:
+            venue.address = data.address
+        if data.stageLayout is not None:
+            venue.stage_layout = data.stageLayout
+        if data.allowedEventTypes is not None:
+            venue.allowed_event_types = data.allowedEventTypes
+        if data.turnaroundMinutes is not None:
+            venue.turnaround_minutes = data.turnaroundMinutes
+
         await session.commit()
         await session.refresh(venue)
 
-    return VenueBase(id=venue.id, name=venue.name, address=venue.address)
+    return _venue_base(venue)
 
 
 async def add_seat_block(venue_id: str, data: AddSeatBlockInput) -> SeatBlockResult:
