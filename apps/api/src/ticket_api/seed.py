@@ -20,6 +20,7 @@ from sqlalchemy import func, select
 from .db import Session, dispose, transaction
 from .models import Event, Role, Seat, SeatCategory, Show, User, Venue, utcnow
 from .modules.events.service import instantiate_show_seats
+from .modules.venues.scheduling import occupied_window
 from .security import hash_password
 
 PASSWORD = "password123"
@@ -177,7 +178,19 @@ async def main() -> None:
         # Same transaction as createShow: a show whose seats failed to generate
         # is worse than no show at all.
         async with transaction() as session:
-            show = Show(event_id=event_id, starts_at=starts_at)
+            ends_at, occupies_until = occupied_window(
+                starts_at=starts_at,
+                duration_minutes=169,  # Interstellar's actual runtime
+                turnaround_minutes=15,
+            )
+            show = Show(
+                event_id=event_id,
+                venue_id=venue_id,
+                starts_at=starts_at,
+                duration_minutes=169,
+                ends_at=ends_at,
+                occupies_until=occupies_until,
+            )
             session.add(show)
             await session.flush()
             count = await instantiate_show_seats(

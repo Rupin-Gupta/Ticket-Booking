@@ -94,6 +94,9 @@ class CreateShowInput(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     startsAt: datetime  # noqa: N815 - wire format
+    # No default: only the organiser knows how long their show runs, and guessing
+    # would silently block the wrong amount of venue time.
+    durationMinutes: int = Field(ge=5, le=24 * 60)  # noqa: N815 - wire format
 
     _naive = field_validator("startsAt", mode="before")(_naive_utc)
 
