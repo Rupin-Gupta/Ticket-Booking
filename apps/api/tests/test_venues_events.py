@@ -302,3 +302,41 @@ async def test_show_detail_carries_venue_and_seat_count(client, make_show):
     body = r.json()["show"]
     assert body["_count"]["showSeats"] == 3
     assert body["event"]["venue"]["id"] == show["venue_id"]
+
+
+async def test_an_event_type_the_venue_forbids_is_refused(client, auth, admin, organiser):
+    """An organiser books a venue rather than owning it."""
+    venue = (
+        await client.post(
+            VENUES,
+            json={"name": "ConcertOnly", "address": "x", "allowedEventTypes": ["CONCERT"]},
+            headers=auth(admin[1]),
+        )
+    ).json()["venue"]["id"]
+
+    r = await client.post(
+        EVENTS,
+        json={"venueId": venue, "title": "Film", "type": "MOVIE"},
+        headers=auth(organiser[1]),
+    )
+    assert r.status_code == 400
+    assert r.json()["error"]["code"] == "EVENT_TYPE_NOT_ALLOWED"
+    # The message must name what the venue DOES allow, or the organiser guesses.
+    assert "CONCERT" in r.json()["error"]["message"]
+
+
+async def test_a_permitted_event_type_still_works(client, auth, admin, organiser):
+    venue = (
+        await client.post(
+            VENUES,
+            json={"name": "ConcertOnly2", "address": "x", "allowedEventTypes": ["CONCERT"]},
+            headers=auth(admin[1]),
+        )
+    ).json()["venue"]["id"]
+
+    r = await client.post(
+        EVENTS,
+        json={"venueId": venue, "title": "Gig", "type": "CONCERT"},
+        headers=auth(organiser[1]),
+    )
+    assert r.status_code == 201, r.text

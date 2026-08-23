@@ -184,9 +184,19 @@ async def get_event(event_id: str) -> EventOut:
 
 async def create_event(data: CreateEventInput, caller: TokenPayload) -> EventWritten:
     async with Session() as session:
-        venue = await session.scalar(select(Venue.id).where(Venue.id == data.venueId))
+        venue = (
+            (await session.execute(select(Venue).where(Venue.id == data.venueId))).scalars().first()
+        )
         if venue is None:
             raise ApiError.bad_request("VENUE_NOT_FOUND", "No venue with that id.")
+
+        # A venue is admin-owned infrastructure; an organiser books it, and
+        # cannot put a film in a room built for concerts.
+        if data.type not in venue.allowed_event_types:
+            allowed = " and ".join(t.value for t in venue.allowed_event_types)
+            raise ApiError.bad_request(
+                "EVENT_TYPE_NOT_ALLOWED", f"This venue hosts {allowed} only."
+            )
 
         event = Event(
             venue_id=data.venueId,
