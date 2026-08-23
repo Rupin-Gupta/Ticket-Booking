@@ -7,6 +7,7 @@ load-bearing and is commented in place rather than here.
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta
 
 from sqlalchemy import Text, bindparam, distinct, select, text, update
@@ -18,7 +19,7 @@ from ...db import Session, transaction
 from ...errors import ApiError
 from ...models import Seat, SeatCategory, SeatStatus, Show, ShowSeat, iso, money, utcnow
 from ...realtime.emit import broadcast_status
-from .schemas import HoldResult, HoldSeatsInput, MyHold, SeatView
+from .schemas import ExtendResult, HoldResult, HoldSeatsInput, MyHold, ReleaseResult, SeatView
 
 # --------------------------------------------------------------- lazy expiry
 
@@ -240,8 +241,21 @@ async def _assert_within_hold_cap(user_id: str, show_id: str) -> None:
         )
 
 
-async def release_holds(show_id: str, user_id: str) -> int:
-    """Explicit release — the customer backed out rather than walking away."""
+async def release_holds(show_id: str, user_id: str) -> ReleaseResult:
+    """
+    Explicit "back" or "cancel" from checkout.
+
+    Shortens the hold rather than deleting it. The seat becomes bookable by
+    anybody else after RELEASE_GRACE_SECONDS — effective_status enforces that
+    exactly, with no sweeper involved — but the owner is kept, so a customer who
+    bounces back and forward can reclaim it with extend_hold instead of losing
+    their seats to somebody faster.
+
+    A deleted hold would make that impossible, and would make a mis-clicked Back
+    button irreversible.
+    """
+    free_at = utcnow() + timedelta(seconds=settings.RELEASE_GRACE_SECONDS)
+
     async with Session() as session:
         ids = (
             (
@@ -259,17 +273,56 @@ async def release_holds(show_id: str, user_id: str) -> int:
             .all()
         )
         if not ids:
-            return 0
+            return ReleaseResult(released=0, freeAt=iso(free_at) or "")
 
         await session.execute(
-            update(ShowSeat)
-            .where(ShowSeat.id.in_(ids))
-            .values(status=SeatStatus.AVAILABLE, held_by_user_id=None, hold_expires_at=None)
+            update(ShowSeat).where(ShowSeat.id.in_(ids)).values(hold_expires_at=free_at)
         )
         await session.commit()
 
-    broadcast_status(show_id, list(ids), SeatStatus.AVAILABLE.value)
-    return len(ids)
+    # Others should see them free the moment the grace elapses, so announce the
+    # status they will have — not the status they have right now.
+    loop = asyncio.get_running_loop()
+    loop.call_later(
+        settings.RELEASE_GRACE_SECONDS,
+        broadcast_status,
+        show_id,
+        list(ids),
+        SeatStatus.AVAILABLE.value,
+    )
+
+    return ReleaseResult(released=len(ids), freeAt=iso(free_at) or "")
+
+
+async def extend_hold(show_id: str, user_id: str) -> ExtendResult:
+    """
+    Restores a shortened hold to the full TTL.
+
+    Only touches seats this caller still holds and whose clock has not run out,
+    so it can never resurrect a seat somebody else has taken in the meantime.
+    """
+    expires_at = utcnow() + timedelta(seconds=settings.HOLD_TTL_SECONDS)
+
+    async with Session() as session:
+        result = await session.execute(
+            update(ShowSeat)
+            .where(
+                ShowSeat.show_id == show_id,
+                ShowSeat.held_by_user_id == user_id,
+                ShowSeat.status == SeatStatus.HELD,
+                ShowSeat.hold_expires_at > utcnow(),
+            )
+            .values(hold_expires_at=expires_at)
+        )
+        await session.commit()
+
+    count = result.rowcount or 0
+    if count == 0:
+        raise ApiError.conflict(
+            "NO_ACTIVE_HOLD", "Your hold has already expired. Pick your seats again."
+        )
+
+    return ExtendResult(holdExpiresAt=iso(expires_at) or "", seats=count)
 
 
 async def list_my_holds(user_id: str) -> list[MyHold]:

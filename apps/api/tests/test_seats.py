@@ -170,8 +170,23 @@ async def test_release_frees_only_your_own_seats(client, auth, make_show, make_u
         s["id"]: s
         for s in (await client.get(f"/api/v1/shows/{show['show_id']}/seats")).json()["seats"]
     }
-    assert seats[show["seat_ids"][0]]["status"] == "AVAILABLE"
+    # Both still read HELD — mine on a 15-second clock, theirs on the full TTL.
+    assert seats[show["seat_ids"][0]]["status"] == "HELD"
     assert seats[show["seat_ids"][1]]["status"] == "HELD"
+
+    async with Session() as session:
+        rows = {
+            r.id: r
+            for r in (
+                await session.execute(select(ShowSeat).where(ShowSeat.id.in_(show["seat_ids"])))
+            )
+            .scalars()
+            .all()
+        }
+    mine_left = (rows[show["seat_ids"][0]].hold_expires_at - utcnow()).total_seconds()
+    theirs_left = (rows[show["seat_ids"][1]].hold_expires_at - utcnow()).total_seconds()
+    assert mine_left <= settings.RELEASE_GRACE_SECONDS + 2
+    assert theirs_left > settings.RELEASE_GRACE_SECONDS + 10
 
 
 async def test_releasing_nothing_is_not_an_error(client, auth, make_show, make_user):

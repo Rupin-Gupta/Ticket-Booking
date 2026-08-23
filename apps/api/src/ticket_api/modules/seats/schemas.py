@@ -68,6 +68,13 @@ class HoldResult(BaseModel):
 
 class ReleaseResult(BaseModel):
     released: int
+    #: When the seats actually become bookable by anyone else.
+    freeAt: str  # noqa: N815 - wire format
+
+
+class ExtendResult(BaseModel):
+    holdExpiresAt: str  # noqa: N815 - wire format
+    seats: int
 
 
 class MyHold(BaseModel):
