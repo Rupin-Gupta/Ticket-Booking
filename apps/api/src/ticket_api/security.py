@@ -15,22 +15,32 @@ from typing import Literal, TypedDict
 
 import jwt
 from argon2 import PasswordHasher, Type
-from argon2.exceptions import Argon2Error
+from argon2.exceptions import Argon2Error, InvalidHashError
 
 from .config import require_env, settings
 from .errors import ApiError
 
 # ------------------------------------------------------------------ passwords
 
+# InvalidHashError is NOT a subclass of Argon2Error, so both have to be named.
+# Catching only Argon2Error let a malformed hash in the database raise straight
+# through as a 500 instead of a failed login — the property the retired
+# TypeScript API explicitly guarded, and which this port lost until a test
+# caught it.
+_VERIFY_ERRORS = (Argon2Error, InvalidHashError)
+
 # Argon2id — OWASP's first choice in the Password Storage Cheat Sheet, with
 # bcrypt listed only as the legacy fallback.
 #
 # The type is pinned rather than left to the library default so a dependency
 # bump cannot silently move us onto argon2i or argon2d. The cost parameters are
-# argon2-cffi's defaults, which happen to match the Node `argon2` package's
-# defaults exactly (m=64MiB, t=3, p=4) — so hashes written by the retired
-# TypeScript API still verify here. Both are above the OWASP floor of
-# m=19MiB, t=2, p=1.
+# argon2-cffi's defaults and happen to match the Node `argon2` package's exactly
+# (m=64MiB, t=3, p=4), both above the OWASP floor of m=19MiB, t=2, p=1.
+#
+# Matching parameters is NOT the same as a readable hash, which I originally got
+# wrong: Node encodes them as `m,p,t` and argon2-cffi only decodes `m,t,p`, so
+# every pre-port hash failed to parse and every pre-port account was locked out.
+# `_normalise_encoding` below is what actually makes them verify.
 _hasher = PasswordHasher(
     time_cost=3,
     memory_cost=65536,
@@ -53,18 +63,53 @@ def hash_password(plain: str) -> str:
 _DECOY_HASH = _hasher.hash("a password nobody has: " + secrets.token_hex(16))
 
 
+def _normalise_encoding(encoded: str) -> str:
+    """
+    Reorder Argon2 parameters to the order argon2-cffi's decoder accepts.
+
+    The Node `argon2` package that wrote every pre-port hash encodes them as
+    `m=...,p=...,t=...`; argon2-cffi requires `m=...,t=...,p=...` and raises
+    "Decoding failed" otherwise. Same algorithm, same cost parameters, same
+    salt and digest — only the order of three key/value pairs differs.
+
+    This mattered more than it sounds: `verify_password` catches every
+    exception and returns False, so a hash that could not be *parsed* was
+    indistinguishable from a wrong password, and every account created before
+    the port silently stopped being able to log in.
+
+    A no-op on hashes this application wrote, so it is safe to run on all of
+    them. ponytail: no transparent rehash on login. It would let this shim be
+    deleted eventually, but it puts a database write on the login path, and a
+    failed write there must not fail an otherwise valid login. Ten lines that
+    never run for new users is the cheaper trade.
+    """
+    parts = encoded.split("$")
+    if len(parts) < 4 or "," not in parts[3]:
+        return encoded
+    try:
+        params = dict(kv.split("=", 1) for kv in parts[3].split(","))
+    except ValueError:
+        return encoded  # not a shape we recognise; let the verifier reject it
+    if set(params) != {"m", "t", "p"}:
+        return encoded
+    parts[3] = f"m={params['m']},t={params['t']},p={params['p']}"
+    return "$".join(parts)
+
+
 def verify_password(stored_hash: str | None, plain: str) -> bool:
     """Constant-ish time regardless of whether the account exists."""
+    if stored_hash is not None:
+        stored_hash = _normalise_encoding(stored_hash)
     if stored_hash is None:
         # The verify still runs; only its (guaranteed) failure is discarded.
         # Burning the CPU is the entire point — skipping it would restore the
         # timing oracle this branch exists to close.
-        with contextlib.suppress(Argon2Error):
+        with contextlib.suppress(*_VERIFY_ERRORS):
             _hasher.verify(_DECOY_HASH, plain)
         return False
     try:
         return _hasher.verify(stored_hash, plain)
-    except Argon2Error:
+    except _VERIFY_ERRORS:
         # Wrong password, or a malformed hash in the database. Both are a failed
         # login, never a 500.
         return False

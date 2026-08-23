@@ -337,3 +337,35 @@ untracked secrets — check `ls -a` first, not `git status`.
 **Cause:** shebangs are absolute. `./.venv/bin/python -m pytest` still works,
 which makes this easy to miss until CI uses the console script.
 **Fix:** recreate the venv after any move. It costs a minute.
+
+### Every pre-port account silently lost the ability to log in
+
+**Symptom:** "Incorrect email or password" for `admin@ticket.dev` and every other
+account created before the Python port, with the correct password. Accounts
+created _after_ the port worked fine.
+**Cause:** two compounding mistakes of mine.
+
+First, the encoding. Argon2's PHC string carries its parameters as key/value
+pairs, and the Node `argon2` package writes them `m,p,t` while argon2-cffi only
+decodes `m,t,p`. Same algorithm, same cost parameters, same salt, same digest —
+only the order of three pairs differs, and argon2-cffi raises
+`VerificationError: Decoding failed`. I had claimed in ADR-026 and a commit
+message that matching cost parameters meant old hashes would verify. Matching
+parameters is not the same as a readable hash.
+
+Second, and the reason it was invisible: `verify_password` catches exceptions
+and returns `False`, so a hash that could not be _parsed_ was indistinguishable
+from a wrong password. There was nothing in the logs at all.
+
+**Fix:** `_normalise_encoding()` in `security.py` reorders the parameters before
+verifying. It is a no-op on hashes this application wrote, so it runs on all of
+them.
+
+**Found while fixing it:** `InvalidHashError` is **not** a subclass of
+`Argon2Error`, so `except Argon2Error` let a genuinely malformed hash raise
+straight through as a 500 instead of a failed login — a property the TypeScript
+version had explicitly guarded and the port lost. Both are named now.
+
+**Lesson worth keeping:** a catch-all `except` that turns every failure into one
+user-visible outcome will hide the difference between "wrong password" and "this
+code cannot read your database". Test the malformed case explicitly.
