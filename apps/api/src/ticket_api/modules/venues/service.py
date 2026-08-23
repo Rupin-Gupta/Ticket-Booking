@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import math
+
 from psycopg.errors import UniqueViolation
 from sqlalchemy import distinct, func, select
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...db import Session
 from ...errors import ApiError
+from ...lib.geometry import generate_centre_stage_block, generate_end_stage_block
 from ...models import EventType, Seat, StageLayout, Venue
 from .schemas import (
     AddSeatBlockInput,
@@ -18,8 +22,6 @@ from .schemas import (
     VenueDetail,
     VenueSummary,
 )
-
-ROW_LABELS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 
 def _assert_capabilities_coherent(stage_layout: StageLayout, allowed: list[EventType]) -> None:
@@ -149,33 +151,39 @@ async def update_venue(venue_id: str, data: UpdateVenueInput) -> VenueBase:
 
 async def add_seat_block(venue_id: str, data: AddSeatBlockInput) -> SeatBlockResult:
     """
-    Generates a rectangular block of seats and appends it below whatever the
-    venue already has.
+    Generates a block of seats using whichever layout the venue was built for.
 
-    posX / posY are grid coordinates, not pixels — the frontend decides how big
-    a seat is. New blocks start two rows below the lowest existing seat so
-    sections stack visually instead of overlapping, and the caller never has to
-    work out an offset.
+    A new block is always placed outside or below everything already there, so
+    sections never overlap and the caller never computes an offset.
     """
-    await get_venue(venue_id)  # 404 before anything else
+    venue = await get_venue(venue_id)  # 404 before anything else
 
     async with Session() as session:
-        lowest = await session.scalar(select(func.max(Seat.pos_y)).where(Seat.venue_id == venue_id))
-        start_y = 0.0 if lowest is None else float(lowest) + 2
+        if venue.stageLayout is StageLayout.CENTRE_STAGE:
+            start = await _outermost_radius(session, venue_id)
+            positions = generate_centre_stage_block(
+                rows=data.rows,
+                seats_per_row=data.seatsPerRow,
+                start_radius=start + 2,
+                arc_start_degrees=data.arcStartDegrees,
+                arc_span_degrees=data.arcSpanDegrees,
+            )
+        else:
+            start = await _lowest_row(session, venue_id)
+            positions = generate_end_stage_block(
+                rows=data.rows, seats_per_row=data.seatsPerRow, start_y=start + 2
+            )
 
         seats = [
             Seat(
                 venue_id=venue_id,
                 section=data.section,
-                row=ROW_LABELS[r],
-                number=n,
-                # Centre each row on x = 0 so rows of different widths stay
-                # aligned.
-                pos_x=n - (data.seatsPerRow + 1) / 2,
-                pos_y=start_y + r,
+                row=p.row,
+                number=p.number,
+                pos_x=p.pos_x,
+                pos_y=p.pos_y,
             )
-            for r in range(data.rows)
-            for n in range(1, data.seatsPerRow + 1)
+            for p in positions
         ]
         session.add_all(seats)
 
@@ -183,7 +191,7 @@ async def add_seat_block(venue_id: str, data: AddSeatBlockInput) -> SeatBlockRes
             await session.commit()
         except IntegrityError as err:
             await session.rollback()
-            # @@unique([venueId, section, row, number]) — re-adding the same block.
+            # unique(venueId, section, row, number) — re-adding the same block.
             if isinstance(err.orig, UniqueViolation):
                 raise ApiError.conflict(
                     "SEATS_ALREADY_EXIST",
@@ -191,7 +199,26 @@ async def add_seat_block(venue_id: str, data: AddSeatBlockInput) -> SeatBlockRes
                 ) from err
             raise
 
-    return SeatBlockResult(created=len(seats), section=data.section, startY=start_y)
+    return SeatBlockResult(created=len(seats), section=data.section, startY=start + 2)
+
+
+async def _lowest_row(session: AsyncSession, venue_id: str) -> float:
+    """Lowest occupied grid row, or -2 so the first block starts at y = 0."""
+    lowest = await session.scalar(select(func.max(Seat.pos_y)).where(Seat.venue_id == venue_id))
+    return -2.0 if lowest is None else float(lowest)
+
+
+async def _outermost_radius(session: AsyncSession, venue_id: str) -> float:
+    """
+    Radius of the outermost existing seat, or 1 so the first ring starts at 3 —
+    far enough out to leave room for the stage in the middle.
+    """
+    seats = (
+        await session.execute(select(Seat.pos_x, Seat.pos_y).where(Seat.venue_id == venue_id))
+    ).all()
+    if not seats:
+        return 1.0
+    return max(math.hypot(float(x), float(y)) for x, y in seats)
 
 
 async def list_sections(venue_id: str) -> list[str]:
