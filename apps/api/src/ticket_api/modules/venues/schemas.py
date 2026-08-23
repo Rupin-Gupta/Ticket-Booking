@@ -48,6 +48,10 @@ class AddSeatBlockInput(BaseModel):
     would need a second letter, and nothing in this project needs a 27-row
     section. ponytail: if a venue ever does, switch to AA/AB here and nowhere
     else.
+
+    The arc fields apply only to a CENTRE_STAGE venue and are ignored otherwise.
+    Defaulting to a full circle means a single-section ring needs no extra input;
+    four 90-degree blocks build a venue with four wedges.
     """
 
     model_config = ConfigDict(extra="ignore")
@@ -55,6 +59,8 @@ class AddSeatBlockInput(BaseModel):
     section: str = Field(min_length=1, max_length=40)
     rows: int = Field(ge=1, le=26)
     seatsPerRow: int = Field(ge=1, le=60)  # noqa: N815 - wire format
+    arcStartDegrees: float = Field(default=0, ge=0, le=360)  # noqa: N815 - wire format
+    arcSpanDegrees: float = Field(default=360, gt=0, le=360)  # noqa: N815 - wire format
 
     _normalise = field_validator("section", mode="before")(_trim)
 
