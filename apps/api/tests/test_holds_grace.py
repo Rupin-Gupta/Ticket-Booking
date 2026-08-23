@@ -7,6 +7,7 @@ from sqlalchemy import select, update
 from ticket_api.config import settings
 from ticket_api.db import Session
 from ticket_api.models import SeatStatus, ShowSeat, utcnow
+from ticket_api.modules.seats.service import _current_statuses
 
 
 async def _hold(client, auth, show, token):
@@ -144,3 +145,31 @@ async def test_extend_requires_authentication(client, make_show):
     show = await make_show(seats=1)
     r = await client.post(f"/api/v1/shows/{show['show_id']}/holds/extend")
     assert r.status_code == 401
+
+
+async def test_the_delayed_release_broadcast_is_not_fooled_by_a_later_extend(
+    client, auth, make_show, make_user
+):
+    """
+    Regression: release_holds used to schedule its delayed broadcast with a
+    fixed AVAILABLE payload captured at release time. Extending within the
+    grace window restores the hold in the database, but the stale timer would
+    still fire AVAILABLE at T+RELEASE_GRACE_SECONDS regardless — a false
+    signal to every other viewer, even though nothing can actually double-sell
+    the seat (hold_seats' lock still gates real bookings).
+
+    _current_statuses is the exact function the delayed callback re-reads
+    from when its timer fires, so asserting on it here proves the fix without
+    needing a Socket.IO emitter wired up (there is none in tests).
+    """
+    show = await make_show(seats=1)
+    _, token = await make_user()
+    await _hold(client, auth, show, token)
+    await client.delete(f"/api/v1/shows/{show['show_id']}/holds", headers=auth(token))
+
+    r = await client.post(f"/api/v1/shows/{show['show_id']}/holds/extend", headers=auth(token))
+    assert r.status_code == 200, r.text
+
+    # Simulate the delayed callback firing right now: what would it see?
+    statuses = await _current_statuses(show["seat_ids"])
+    assert statuses[show["seat_ids"][0]] is SeatStatus.HELD

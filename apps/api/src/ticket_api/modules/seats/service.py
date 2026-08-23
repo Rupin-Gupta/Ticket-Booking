@@ -18,7 +18,7 @@ from ...config import settings
 from ...db import Session, transaction
 from ...errors import ApiError
 from ...models import Seat, SeatCategory, SeatStatus, Show, ShowSeat, iso, money, utcnow
-from ...realtime.emit import broadcast_status
+from ...realtime.emit import broadcast_seats, broadcast_status
 from .schemas import ExtendResult, HoldResult, HoldSeatsInput, MyHold, ReleaseResult, SeatView
 
 # --------------------------------------------------------------- lazy expiry
@@ -280,18 +280,87 @@ async def release_holds(show_id: str, user_id: str) -> ReleaseResult:
         )
         await session.commit()
 
-    # Others should see them free the moment the grace elapses, so announce the
-    # status they will have — not the status they have right now.
-    loop = asyncio.get_running_loop()
-    loop.call_later(
-        settings.RELEASE_GRACE_SECONDS,
-        broadcast_status,
-        show_id,
-        list(ids),
-        SeatStatus.AVAILABLE.value,
-    )
+    # Others should see them free the moment the grace elapses. Scheduled, not
+    # broadcast now — see _schedule_status_rebroadcast for why this cannot just
+    # send a fixed AVAILABLE payload.
+    _schedule_status_rebroadcast(show_id, list(ids))
 
     return ReleaseResult(released=len(ids), freeAt=iso(free_at) or "")
+
+
+_background_tasks: set[asyncio.Task[None]] = set()
+
+
+def _schedule_status_rebroadcast(show_id: str, seat_ids: list[str]) -> None:
+    """
+    RELEASE_GRACE_SECONDS after a release, re-read these seats and broadcast
+    whatever they actually are by then — not what release_holds assumed.
+
+    A fixed "these go AVAILABLE" payload captured at release time is only true
+    if nothing else happens in the grace window. It is not: extend_hold can
+    restore the hold, somebody else can re-hold or book the seat, or it can be
+    offered to a waitlisted customer, all before the timer fires. Re-reading
+    and running the result through effective_status() — the same function
+    every other read uses — is what keeps this correct under any interleaving.
+    It mirrors why sweep_expired_holds never has this bug: it never trusts a
+    status it computed earlier either. Do NOT "simplify" this back into
+    `loop.call_later(..., broadcast_status, ..., AVAILABLE)` — that fixed
+    payload is exactly the bug this replaced.
+
+    Fire-and-forget: `call_later` schedules a sync callback that hands off to
+    a task on the same running loop, so this never delays the HTTP response.
+    The task is held in `_background_tasks` only so it is not garbage
+    collected mid-flight (asyncio keeps just a weak reference to a bare task);
+    it self-removes on completion. If the process shuts down before the timer
+    fires, nothing is lost: no state was written here, and the next read of
+    these seats recomputes the correct status from the database regardless —
+    exactly as it does for every other seat, timer or no timer.
+    """
+    loop = asyncio.get_running_loop()
+
+    def _fire() -> None:
+        task = loop.create_task(_rebroadcast_true_status(show_id, seat_ids))
+        _background_tasks.add(task)
+        task.add_done_callback(_background_tasks.discard)
+
+    loop.call_later(settings.RELEASE_GRACE_SECONDS, _fire)
+
+
+async def _current_statuses(seat_ids: list[str]) -> dict[str, SeatStatus]:
+    """
+    Fresh, right-now effective_status() for each seat id — the single source
+    of truth `_rebroadcast_true_status` reports and cancel/extend races are
+    checked against. Split out from the broadcast so it can be asserted on
+    directly without a Socket.IO emitter wired up (there is none in tests).
+    """
+    if not seat_ids:
+        return {}
+    async with Session() as session:
+        rows = (
+            await session.execute(
+                select(
+                    ShowSeat.id,
+                    ShowSeat.status,
+                    ShowSeat.hold_expires_at,
+                    ShowSeat.offer_expires_at,
+                ).where(ShowSeat.id.in_(seat_ids))
+            )
+        ).all()
+
+    now = utcnow()
+    return {
+        row.id: effective_status(row.status, row.hold_expires_at, row.offer_expires_at, now)
+        for row in rows
+    }
+
+
+async def _rebroadcast_true_status(show_id: str, seat_ids: list[str]) -> None:
+    """Re-reads and announces what these seats actually are right now."""
+    statuses = await _current_statuses(seat_ids)
+    broadcast_seats(
+        show_id,
+        [{"id": seat_id, "status": status.value} for seat_id, status in statuses.items()],
+    )
 
 
 async def extend_hold(show_id: str, user_id: str) -> ExtendResult:
