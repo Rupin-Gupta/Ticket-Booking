@@ -6,6 +6,7 @@ from ...deps import CurrentUser, OptionalUser
 from ...rate_limit import hold_limiter
 from . import service
 from .schemas import (
+    ExtendResult,
     HoldResult,
     HoldSeatsInput,
     MyHoldsResult,
@@ -39,7 +40,12 @@ async def place_hold(show_id: str, body: HoldSeatsInput, user: CurrentUser) -> H
 
 @show_router.delete("/{show_id}/holds", response_model=ReleaseResult)
 async def release(show_id: str, user: CurrentUser) -> ReleaseResult:
-    return ReleaseResult(released=await service.release_holds(show_id, user["sub"]))
+    return await service.release_holds(show_id, user["sub"])
+
+
+@show_router.post("/{show_id}/holds/extend", response_model=ExtendResult)
+async def extend(show_id: str, user: CurrentUser) -> ExtendResult:
+    return await service.extend_hold(show_id, user["sub"])
 
 
 @hold_router.get("/me", response_model=MyHoldsResult)
