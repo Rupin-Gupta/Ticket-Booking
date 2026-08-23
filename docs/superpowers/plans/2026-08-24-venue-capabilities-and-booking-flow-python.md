@@ -1338,8 +1338,8 @@ def upgrade() -> None:
 
     op.add_column("Show", sa.Column("venueId", sa.Text(), nullable=True))
     op.add_column("Show", sa.Column("durationMinutes", sa.Integer(), nullable=True))
-    op.add_column("Show", sa.Column("endsAt", sa.TIMESTAMP(precision=3), nullable=True))
-    op.add_column("Show", sa.Column("occupiesUntil", sa.TIMESTAMP(precision=3), nullable=True))
+    op.add_column("Show", sa.Column("endsAt", postgresql.TIMESTAMP(precision=3), nullable=True))
+    op.add_column("Show", sa.Column("occupiesUntil", postgresql.TIMESTAMP(precision=3), nullable=True))
     op.add_column(
         "Show",
         sa.Column(
