@@ -140,8 +140,13 @@ class VenueResult(BaseModel):
     venue: VenueBase
 
 
+class SectionOut(BaseModel):
+    name: str
+    seatCount: int  # noqa: N815 - wire format
+
+
 class SectionsResult(BaseModel):
-    sections: list[str]
+    sections: list[SectionOut]
 
 
 class SeatBlockResult(BaseModel):

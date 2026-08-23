@@ -18,6 +18,11 @@ export type VenueDetail = { id: string; name: string; address: string; seats: Ve
 
 export type Category = { id: string; name: string; price: string; sections?: string[] };
 
+/** A venue section and how many seats it holds. NOT the same as
+ *  `Category.sections`, which is the list of section *names* a price band
+ *  claims and stays a plain string[]. */
+export type VenueSection = { name: string; seatCount: number };
+
 export type ShowSummary = { id: string; startsAt: string; _count?: { showSeats: number } };
 
 export type EventSummary = {

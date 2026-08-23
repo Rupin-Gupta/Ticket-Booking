@@ -202,3 +202,32 @@ async def test_the_arc_fields_are_ignored_for_an_end_stage_venue(client, auth, a
     seats = (await client.get(f"{VENUES}/{venue}")).json()["venue"]["seats"]
     assert sum(s["posX"] for s in seats) == 0
     assert len({s["posY"] for s in seats}) == 1
+
+
+async def test_sections_are_reported_with_their_seat_counts(client, auth, admin):
+    """
+    Pricing a section blind is how an organiser discovers at show-creation time
+    that "Balcony" was four hundred seats.
+    """
+    venue = await _make_venue(client, auth, admin)
+    await client.post(
+        f"{VENUES}/{venue}/seats",
+        json={"section": "Front", "rows": 2, "seatsPerRow": 5},
+        headers=auth(admin[1]),
+    )
+    await client.post(
+        f"{VENUES}/{venue}/seats",
+        json={"section": "Back", "rows": 3, "seatsPerRow": 4},
+        headers=auth(admin[1]),
+    )
+
+    sections = (await client.get(f"{VENUES}/{venue}/sections")).json()["sections"]
+    by_name = {s["name"]: s["seatCount"] for s in sections}
+    assert by_name == {"Front": 10, "Back": 12}
+    # Alphabetical, so the organiser screen has a stable order.
+    assert [s["name"] for s in sections] == ["Back", "Front"]
+
+
+async def test_a_venue_with_no_seats_reports_no_sections(client, auth, admin):
+    venue = await _make_venue(client, auth, admin)
+    assert (await client.get(f"{VENUES}/{venue}/sections")).json()["sections"] == []
