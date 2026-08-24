@@ -173,22 +173,23 @@ pooler because Alembic takes an advisory lock, which is session state.
 ## Seat hold and TTL
 
 A physical `Seat` belongs to a venue and carries no status — a chair does not
-know whether it is sold. `instantiateShowSeats()` generates one `ShowSeat` per
+know whether it is sold. `instantiate_show_seats()` generates one `ShowSeat` per
 seat per show, inside the same transaction that creates the show. That row
 carries the live status and is what everything locks.
 
 **Expiry works at two levels, and only one is the guarantee.**
 
 **Lazy expiry is correctness.** Every read and every mutation passes rows
-through `effectiveStatus()`, which treats `HELD` past `holdExpiresAt` as
+through `effective_status()`, which treats `HELD` past `holdExpiresAt` as
 `AVAILABLE`. A seat is bookable the instant its lease lapses **even if every
 background job is dead**. No abandoned checkout can lock a seat permanently.
 
 **The sweeper is visibility.** A ten-second interval flips expired rows and
 broadcasts, so other people's screens stop showing the seat as grey.
 
-It is a plain `setInterval` running two indexed `UPDATE`s, not a queued job. An
-idle BullMQ worker's blocking poll costs ~518,000 Redis commands a month against
+It is one `asyncio` task running two indexed `UPDATE`s on a ten-second sleep,
+not a queued job. An idle ARQ worker's blocking poll costs ~518,000 Redis
+commands a month against
 Upstash's 500,000 free-tier allowance — a queue here would exhaust the tier in
 about three days, silently. Redis stays for email and the socket adapter, where
 it earns its place. ([ADR-018](docs/DECISIONS.md))
@@ -220,8 +221,8 @@ bookable at exactly fifteen seconds, with the sweeper uninvolved.
            │   OFFERED    │ ◀──────────────┐         │   BOOKED   │
            │ (one named   │                │         └─────┬──────┘
            │  customer)   │ ───────────────┘               │ cancelled
-           └──────┬───────┘  advanceWaitlist()             ▼
-                  │ offer accepted            advanceWaitlist()
+           └──────┬───────┘  advance_waitlist()             ▼
+                  │ offer accepted            advance_waitlist()
                   └────────────▶ BOOKED
 ```
 
@@ -286,14 +287,14 @@ leaks seats when the cart is abandoned.
 
 ## Waitlist and time-limited offers
 
-`advanceWaitlist(tx, showSeatId)` is the **only** implementation of "a seat
+`advance_waitlist(tx, showSeatId)` is the **only** implementation of "a seat
 became free, find the next customer". Cancellation calls it; offer expiry calls
 the same function. Two copies drift on exactly the clauses that matter.
 
 1. **Join** — only when the category is genuinely sold out (an expired lease
    counts as available, so a stale row cannot push someone into a queue).
    Duplicate live entries are refused.
-2. **A seat frees** — cancellation passes each seat to `advanceWaitlist()`
+2. **A seat frees** — cancellation passes each seat to `advance_waitlist()`
    inside the same transaction that freed it.
 3. **The queue is read**, FIFO, one row at a time:
    `ORDER BY "joinedAt" ASC LIMIT 1 FOR UPDATE SKIP LOCKED`. `SKIP LOCKED` means
@@ -306,7 +307,7 @@ the same function. Two copies drift on exactly the clauses that matter.
    still `OFFERED`, and **the caller is the customer it was offered to**. The
    token arrives by email, and email gets forwarded. Success clears it — single
    use.
-6. **Expiry marks the entry `EXPIRED` and calls `advanceWaitlist()` again**,
+6. **Expiry marks the entry `EXPIRED` and calls `advance_waitlist()` again**,
    rather than freeing the seat. That is the loop: an ignored offer walks down
    the queue by itself, reaching general sale only when the line is empty.
 
