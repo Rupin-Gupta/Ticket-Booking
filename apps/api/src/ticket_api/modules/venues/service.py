@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 
 from psycopg.errors import UniqueViolation
+from sqlalchemy import delete as sql_delete
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ...db import Session
 from ...errors import ApiError
 from ...lib.geometry import generate_centre_stage_block, generate_end_stage_block
-from ...models import EventType, Seat, StageLayout, Venue
+from ...models import Event, EventType, Seat, StageLayout, Venue
 from .schemas import (
     AddSeatBlockInput,
     CreateVenueInput,
@@ -240,3 +241,37 @@ async def list_sections(venue_id: str) -> list[SectionOut]:
             )
         ).all()
     return [SectionOut(name=name, seatCount=int(count)) for name, count in rows]
+
+
+async def delete_venue(venue_id: str) -> None:
+    """
+    Delete a venue and the seats that only exist to describe it.
+
+    Refuses while any event still points here. A venue is not a row to be tidied
+    away — it is the thing a ticket names, and an event whose venue vanished
+    cannot tell a customer where to turn up. The message names the blocker so
+    the admin knows what to clear first, rather than being told "no".
+
+    Seats go with it. A `Seat` is a chair in this building; it means nothing
+    once the building is gone, and nothing outside the venue references one
+    until a show generates `ShowSeat` rows, which requires an event.
+    """
+    async with Session() as session:
+        venue = (await session.execute(select(Venue).where(Venue.id == venue_id))).scalars().first()
+        if venue is None:
+            raise ApiError.not_found("VENUE_NOT_FOUND", "No venue with that id.")
+
+        events = int(
+            await session.scalar(select(func.count(Event.id)).where(Event.venue_id == venue_id))
+            or 0
+        )
+        if events:
+            raise ApiError.conflict(
+                "VENUE_IN_USE",
+                f"{events} event{'s' if events != 1 else ''} still use this venue. "
+                "Delete those first.",
+            )
+
+        await session.execute(sql_delete(Seat).where(Seat.venue_id == venue_id))
+        await session.delete(venue)
+        await session.commit()

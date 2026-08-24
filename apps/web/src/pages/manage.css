@@ -251,3 +251,11 @@
   color: var(--text-muted);
   font-size: var(--text-xs);
 }
+
+/* Seating in the round: seats are placed by hand from their stored radial
+   coordinates, so the box only has to be the right size. */
+.preview--round {
+  position: relative;
+  display: block;
+  margin: 0 auto;
+}

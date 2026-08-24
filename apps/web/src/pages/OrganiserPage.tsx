@@ -72,7 +72,14 @@ export function OrganiserPage() {
         </div>
 
         {current ? (
-          <EventEditor event={current} onChanged={events.reload} />
+          <EventEditor
+            event={current}
+            onChanged={events.reload}
+            onDeleted={() => {
+              setSelected(null);
+              events.reload();
+            }}
+          />
         ) : (
           <Card className="pad">
             <EmptyState title="Select an event">
@@ -162,14 +169,41 @@ function CreateEvent({ venues, onCreated }: { venues: VenueSummary[]; onCreated:
   );
 }
 
-function EventEditor({ event, onChanged }: { event: OwnEvent; onChanged: () => void }) {
+function EventEditor({
+  event,
+  onChanged,
+  onDeleted,
+}: {
+  event: OwnEvent;
+  onChanged: () => void;
+  onDeleted: () => void;
+}) {
   const sections = useAsync(
     () => api.get<{ sections: VenueSection[] }>(`/api/v1/venues/${event.venue.id}/sections`),
     [event.venue.id],
   );
 
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
   const priced = new Set(event.categories.flatMap((c) => c.sections));
   const unpriced = (sections.data?.sections ?? []).filter((s) => !priced.has(s.name));
+
+  async function remove() {
+    if (!confirm(`Delete "${event.title}", its pricing and its shows? This cannot be undone.`))
+      return;
+    setDeleteError(null);
+    setDeleting(true);
+    try {
+      await api.del(`/api/v1/events/${event.id}`);
+      onDeleted();
+    } catch (err) {
+      // Refused once anybody has booked — the message says how many.
+      setDeleteError(messageFor(err));
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   return (
     <div className="stack">
@@ -208,8 +242,8 @@ function EventEditor({ event, onChanged }: { event: OwnEvent; onChanged: () => v
             here beats letting someone hit the 400. */}
         {unpriced.length > 0 && (
           <p className="manage__warn">
-            Still unpriced: <strong>{unpriced.map((s) => s.name).join(', ')}</strong>. A show
-            cannot be created until every section has a price.
+            Still unpriced: <strong>{unpriced.map((s) => s.name).join(', ')}</strong>. A show cannot
+            be created until every section has a price.
           </p>
         )}
 
@@ -219,6 +253,18 @@ function EventEditor({ event, onChanged }: { event: OwnEvent; onChanged: () => v
       <Card className="pad">
         <h2 className="manage__h2">Schedule a show</h2>
         <AddShow eventId={event.id} blocked={unpriced.length > 0} onAdded={onChanged} />
+      </Card>
+
+      <Card className="pad">
+        <h2 className="manage__h2">Danger zone</h2>
+        {deleteError && <Alert>{deleteError}</Alert>}
+        <p className="manage__hint">
+          Deleting an event removes its pricing, its shows and their seat maps. It is refused once
+          anybody has booked — cancel the shows instead, so the ticket history survives.
+        </p>
+        <Button variant="quiet" loading={deleting} onClick={remove}>
+          Delete this event
+        </Button>
       </Card>
     </div>
   );

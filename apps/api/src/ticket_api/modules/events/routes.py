@@ -61,6 +61,11 @@ async def update_event(
     return EventWrittenResult(event=await service.update_event(event_id, body, caller))
 
 
+@event_router.delete("/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_event(event_id: str, caller: RequireOrganiser) -> None:
+    await service.delete_event(event_id, caller)
+
+
 @event_router.post(
     "/{event_id}/categories", status_code=status.HTTP_201_CREATED, response_model=CategoryResult
 )

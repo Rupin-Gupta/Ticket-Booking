@@ -3,7 +3,21 @@ import type { EventType } from '@ticket/shared';
 /** Response shapes the Phase 2 screens read. Kept narrow on purpose — these
  *  mirror the API's explicit `select`s, not the database rows. */
 
-export type VenueSummary = { id: string; name: string; address: string; _count: { seats: number } };
+export type StageLayout = 'END_STAGE' | 'CENTRE_STAGE';
+
+/** Admin-owned venue capabilities. A centre-stage venue may not allow MOVIE. */
+export type VenueCapabilities = {
+  stageLayout: StageLayout;
+  allowedEventTypes: EventType[];
+  turnaroundMinutes: number;
+};
+
+export type VenueSummary = VenueCapabilities & {
+  id: string;
+  name: string;
+  address: string;
+  _count: { seats: number };
+};
 
 export type VenueSeat = {
   id: string;
@@ -14,7 +28,12 @@ export type VenueSeat = {
   posY: number;
 };
 
-export type VenueDetail = { id: string; name: string; address: string; seats: VenueSeat[] };
+export type VenueDetail = VenueCapabilities & {
+  id: string;
+  name: string;
+  address: string;
+  seats: VenueSeat[];
+};
 
 export type Category = { id: string; name: string; price: string; sections?: string[] };
 

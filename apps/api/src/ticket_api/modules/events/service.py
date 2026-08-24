@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from psycopg.errors import UniqueViolation
+from sqlalchemy import delete as sql_delete
 from sqlalchemy import distinct, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ...db import Session, transaction
 from ...errors import ApiError
 from ...models import (
+    Booking,
     Event,
     Role,
     Seat,
@@ -16,6 +18,7 @@ from ...models import (
     ShowSeat,
     User,
     Venue,
+    WaitlistEntry,
     iso,
     money,
     utcnow,
@@ -497,3 +500,51 @@ async def get_show(show_id: str) -> ShowDetail:
         ),
         count={"showSeats": seat_count},
     )
+
+
+async def delete_event(event_id: str, caller: TokenPayload) -> None:
+    """
+    Delete an event and the scaffolding underneath it: categories, shows, the
+    generated `ShowSeat` rows and any waitlist entries.
+
+    Refuses the moment a booking exists on any of its shows — including a
+    cancelled one. A booking is the record of somebody paying, and it is the
+    one thing here that cannot be regenerated from anything else. Nothing else
+    under an event is precious: categories are prices, shows are dates, and
+    `ShowSeat` rows are made by `instantiate_show_seats()` from the venue's
+    seats, so all of it can be rebuilt.
+
+    The order below is the foreign-key order, deepest first.
+    """
+    async with Session() as session:
+        event = await _assert_owns(session, event_id, caller)
+
+        show_ids = list(
+            (await session.execute(select(Show.id).where(Show.event_id == event_id)))
+            .scalars()
+            .all()
+        )
+
+        if show_ids:
+            bookings = int(
+                await session.scalar(
+                    select(func.count(Booking.id)).where(Booking.show_id.in_(show_ids))
+                )
+                or 0
+            )
+            if bookings:
+                raise ApiError.conflict(
+                    "EVENT_HAS_BOOKINGS",
+                    f"{bookings} booking{'s' if bookings != 1 else ''} exist on this event. "
+                    "Cancel the shows instead — deleting would destroy the ticket history.",
+                )
+
+            await session.execute(
+                sql_delete(WaitlistEntry).where(WaitlistEntry.show_id.in_(show_ids))
+            )
+            await session.execute(sql_delete(ShowSeat).where(ShowSeat.show_id.in_(show_ids)))
+            await session.execute(sql_delete(Show).where(Show.id.in_(show_ids)))
+
+        await session.execute(sql_delete(SeatCategory).where(SeatCategory.event_id == event_id))
+        await session.delete(event)
+        await session.commit()

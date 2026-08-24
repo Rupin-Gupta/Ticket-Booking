@@ -144,24 +144,37 @@ type SelectProps = React.SelectHTMLAttributes<HTMLSelectElement> & {
   label: string;
   /** Renders the label for the eye as well as the screen reader. */
   showLabel?: boolean;
+  hint?: string;
 };
 
 export function Select({
   label,
   showLabel = true,
+  hint,
   className = '',
   children,
   ...rest
 }: SelectProps) {
   const id = useId();
+  const hintId = `${id}-hint`;
   return (
     <div className={`field ${className}`}>
       <label className={showLabel ? 'field__label' : 'sr-only'} htmlFor={id}>
         {label}
       </label>
-      <select id={id} className="field__input field__select" {...rest}>
+      <select
+        id={id}
+        className="field__input field__select"
+        aria-describedby={hint ? hintId : undefined}
+        {...rest}
+      >
         {children}
       </select>
+      {hint && (
+        <p className="field__hint" id={hintId}>
+          {hint}
+        </p>
+      )}
     </div>
   );
 }

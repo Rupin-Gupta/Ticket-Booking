@@ -44,6 +44,11 @@ async def update_venue(venue_id: str, body: UpdateVenueInput, _admin: RequireAdm
     return VenueResult(venue=await service.update_venue(venue_id, body))
 
 
+@router.delete("/{venue_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_venue(venue_id: str, _admin: RequireAdmin) -> None:
+    await service.delete_venue(venue_id)
+
+
 @router.post(
     "/{venue_id}/seats", status_code=status.HTTP_201_CREATED, response_model=SeatBlockResult
 )

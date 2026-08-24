@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { api } from '../lib/api.js';
 import { messageFor } from '../auth/AuthContext.js';
 import { useAsync } from '../lib/useAsync.js';
-import type { VenueDetail, VenueSummary } from '../lib/types.js';
-import { Alert, Button, Card, EmptyState, Field, Skeleton } from '../components/ui.js';
+import type { EventType } from '@ticket/shared';
+import type { StageLayout, VenueDetail, VenueSummary } from '../lib/types.js';
+import { Alert, Button, Card, EmptyState, Field, Select, Skeleton } from '../components/ui.js';
 import './manage.css';
 
 export function AdminVenuesPage() {
@@ -57,7 +58,14 @@ export function AdminVenuesPage() {
         </div>
 
         {selected ? (
-          <VenueEditor venueId={selected} onChanged={venues.reload} />
+          <VenueEditor
+            venueId={selected}
+            onChanged={venues.reload}
+            onDeleted={() => {
+              setSelected(null);
+              venues.reload();
+            }}
+          />
         ) : (
           <Card className="pad">
             <EmptyState title="Select a venue">
@@ -73,15 +81,33 @@ export function AdminVenuesPage() {
 function CreateVenue({ onCreated }: { onCreated: () => void }) {
   const [name, setName] = useState('');
   const [address, setAddress] = useState('');
+  const [stageLayout, setStageLayout] = useState<StageLayout>('END_STAGE');
+  const [allowsMovies, setAllowsMovies] = useState(true);
+  const [allowsConcerts, setAllowsConcerts] = useState(true);
+  const [turnaroundMinutes, setTurnaroundMinutes] = useState(15);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // A hall in the round cannot show a film, and the API refuses the pair. Say so
+  // here rather than letting the server be the first to mention it.
+  const centreStage = stageLayout === 'CENTRE_STAGE';
+  const allowedEventTypes: EventType[] = [
+    ...(allowsMovies && !centreStage ? (['MOVIE'] as const) : []),
+    ...(allowsConcerts ? (['CONCERT'] as const) : []),
+  ];
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setBusy(true);
     try {
-      await api.post('/api/v1/venues', { name, address });
+      await api.post('/api/v1/venues', {
+        name,
+        address,
+        stageLayout,
+        allowedEventTypes,
+        turnaroundMinutes,
+      });
       setName('');
       setAddress('');
       onCreated();
@@ -111,7 +137,57 @@ function CreateVenue({ onCreated }: { onCreated: () => void }) {
           onChange={(e) => setAddress(e.target.value)}
           placeholder="12 Marine Drive, Mumbai"
         />
-        <Button type="submit" loading={busy} disabled={!name || !address}>
+        <Select
+          label="Stage layout"
+          value={stageLayout}
+          onChange={(e) => setStageLayout(e.target.value as StageLayout)}
+          hint="Decides how seats are generated. It cannot be changed once seats exist — build a second venue instead."
+        >
+          <option value="END_STAGE">End stage — rows facing a screen or stage</option>
+          <option value="CENTRE_STAGE">Centre stage — seating in the round</option>
+        </Select>
+
+        <fieldset className="checks">
+          <legend>Event types allowed</legend>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={allowsMovies && !centreStage}
+              disabled={centreStage}
+              onChange={(e) => setAllowsMovies(e.target.checked)}
+            />
+            Movies
+          </label>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={allowsConcerts}
+              onChange={(e) => setAllowsConcerts(e.target.checked)}
+            />
+            Concerts
+          </label>
+          {centreStage && (
+            <p className="manage__hint">
+              Nobody projects a film in the round, so a centre-stage venue hosts concerts only.
+            </p>
+          )}
+        </fieldset>
+
+        <Field
+          label="Turnaround (minutes)"
+          type="number"
+          min={0}
+          max={240}
+          value={turnaroundMinutes}
+          onChange={(e) => setTurnaroundMinutes(Number(e.target.value))}
+          hint="How long the room needs between shows — emptying, cleaning, resetting. It blocks the next booking of this venue."
+        />
+
+        <Button
+          type="submit"
+          loading={busy}
+          disabled={!name || !address || allowedEventTypes.length === 0}
+        >
           Create venue
         </Button>
       </form>
@@ -119,7 +195,15 @@ function CreateVenue({ onCreated }: { onCreated: () => void }) {
   );
 }
 
-function VenueEditor({ venueId, onChanged }: { venueId: string; onChanged: () => void }) {
+function VenueEditor({
+  venueId,
+  onChanged,
+  onDeleted,
+}: {
+  venueId: string;
+  onChanged: () => void;
+  onDeleted: () => void;
+}) {
   const venue = useAsync(
     () => api.get<{ venue: VenueDetail }>(`/api/v1/venues/${venueId}`),
     [venueId],
@@ -128,15 +212,26 @@ function VenueEditor({ venueId, onChanged }: { venueId: string; onChanged: () =>
   const [section, setSection] = useState('');
   const [rows, setRows] = useState(3);
   const [seatsPerRow, setSeatsPerRow] = useState(10);
+  const [arcStartDegrees, setArcStartDegrees] = useState(0);
+  const [arcSpanDegrees, setArcSpanDegrees] = useState(360);
   const [error, setError] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const centreStage = venue.data?.venue.stageLayout === 'CENTRE_STAGE';
 
   async function addBlock(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setBusy(true);
     try {
-      await api.post(`/api/v1/venues/${venueId}/seats`, { section, rows, seatsPerRow });
+      await api.post(`/api/v1/venues/${venueId}/seats`, {
+        section,
+        rows,
+        seatsPerRow,
+        // Only meaningful in the round; the API defaults them for a grid.
+        ...(centreStage ? { arcStartDegrees, arcSpanDegrees } : {}),
+      });
       setSection('');
       venue.reload();
       onChanged();
@@ -147,13 +242,30 @@ function VenueEditor({ venueId, onChanged }: { venueId: string; onChanged: () =>
     }
   }
 
+  async function remove() {
+    const name = venue.data?.venue.name ?? 'this venue';
+    if (!confirm(`Delete ${name} and its seats? This cannot be undone.`)) return;
+    setDeleteError(null);
+    setBusy(true);
+    try {
+      await api.del(`/api/v1/venues/${venueId}`);
+      onDeleted();
+    } catch (err) {
+      // The API refuses while events still point here, and names how many.
+      setDeleteError(messageFor(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="stack">
       <Card className="pad">
         <h2 className="manage__h2">Add a seat block</h2>
         <p className="manage__hint">
-          Rows are labelled A onwards. Each block is placed below the ones already there, so
-          sections stack instead of overlapping.
+          {centreStage
+            ? 'Rows become rings around the stage, labelled A outwards from the centre. Each block starts outside the ones already there.'
+            : 'Rows are labelled A onwards. Each block is placed below the ones already there, so sections stack instead of overlapping.'}
         </p>
         <form className="stack" onSubmit={addBlock} noValidate>
           {error && <Alert>{error}</Alert>}
@@ -185,6 +297,28 @@ function VenueEditor({ venueId, onChanged }: { venueId: string; onChanged: () =>
               onChange={(e) => setSeatsPerRow(Number(e.target.value))}
             />
           </div>
+          {centreStage && (
+            <div className="pair">
+              <Field
+                label="Arc starts at (°)"
+                type="number"
+                min={0}
+                max={360}
+                value={arcStartDegrees}
+                onChange={(e) => setArcStartDegrees(Number(e.target.value))}
+                hint="0° is due right of the stage."
+              />
+              <Field
+                label="Arc spans (°)"
+                type="number"
+                min={1}
+                max={360}
+                value={arcSpanDegrees}
+                onChange={(e) => setArcSpanDegrees(Number(e.target.value))}
+                hint="360° wraps the stage completely."
+              />
+            </div>
+          )}
           <p className="manage__total">
             Adds <strong>{rows * seatsPerRow}</strong> seats.
           </p>
@@ -198,7 +332,30 @@ function VenueEditor({ venueId, onChanged }: { venueId: string; onChanged: () =>
         <h2 className="manage__h2">Layout</h2>
         {venue.loading && <Skeleton count={1} height={140} />}
         {venue.error && <Alert>{venue.error}</Alert>}
-        {venue.data && <SeatPreview seats={venue.data.venue.seats} />}
+        {venue.data && (
+          <>
+            <p className="manage__hint">
+              {centreStage ? 'Seating in the round' : 'End stage'} ·{' '}
+              {venue.data.venue.allowedEventTypes
+                .map((t) => (t === 'MOVIE' ? 'movies' : 'concerts'))
+                .join(' and ')}{' '}
+              · {venue.data.venue.turnaroundMinutes} min turnaround
+            </p>
+            <SeatPreview seats={venue.data.venue.seats} />
+          </>
+        )}
+      </Card>
+
+      <Card className="pad">
+        <h2 className="manage__h2">Danger zone</h2>
+        {deleteError && <Alert>{deleteError}</Alert>}
+        <p className="manage__hint">
+          Deleting a venue removes its seats too. It is refused while any event still uses it — an
+          event whose venue vanished cannot tell a customer where to turn up.
+        </p>
+        <Button variant="quiet" loading={busy} onClick={remove}>
+          Delete this venue
+        </Button>
       </Card>
     </div>
   );
@@ -221,25 +378,40 @@ function SeatPreview({ seats }: { seats: VenueDetail['seats'] }) {
   const cols = Math.max(...xs) - minX + 1;
   const rowCount = Math.max(...ys) - minY + 1;
 
+  // Centre-stage seats are radius·cos/sin, so they are fractional and often
+  // negative. A CSS grid cannot place them; absolute offsets can place both.
+  const radial = seats.some(
+    (s) => !Number.isInteger(s.posX) || !Number.isInteger(s.posY) || s.posX < 0 || s.posY < 0,
+  );
+
   const sections = [...new Set(seats.map((s) => s.section))];
 
   return (
     <>
       <div className="preview__scroll">
         <div
-          className="preview"
-          style={{
-            gridTemplateColumns: `repeat(${cols}, 14px)`,
-            gridTemplateRows: `repeat(${rowCount}, 14px)`,
-          }}
+          className={radial ? 'preview preview--round' : 'preview'}
+          style={
+            radial
+              ? { width: `${cols * 14}px`, height: `${rowCount * 14}px` }
+              : {
+                  gridTemplateColumns: `repeat(${cols}, 14px)`,
+                  gridTemplateRows: `repeat(${rowCount}, 14px)`,
+                }
+          }
         >
           {seats.map((seat) => (
             <span
               key={seat.id}
               className="preview__seat"
               style={{
-                gridColumn: seat.posX - minX + 1,
-                gridRow: seat.posY - minY + 1,
+                ...(radial
+                  ? {
+                      position: 'absolute' as const,
+                      left: `${(seat.posX - minX) * 14}px`,
+                      top: `${(seat.posY - minY) * 14}px`,
+                    }
+                  : { gridColumn: seat.posX - minX + 1, gridRow: seat.posY - minY + 1 }),
                 // Cycles the section palette; the legend below names them, so
                 // colour is a convenience rather than the only signal.
                 background: `var(--seat-${sections.indexOf(seat.section) % 2 === 0 ? 'free' : 'offered'}-bg)`,
@@ -249,7 +421,7 @@ function SeatPreview({ seats }: { seats: VenueDetail['seats'] }) {
             />
           ))}
         </div>
-        <p className="preview__screen">Screen</p>
+        <p className="preview__screen">{radial ? 'Stage at the centre' : 'Screen'}</p>
       </div>
       <ul className="legend">
         {sections.map((name, i) => (
