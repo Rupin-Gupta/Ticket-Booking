@@ -281,10 +281,10 @@ Specs: [venue capabilities and booking flow](specs/2026-08-23-venue-capabilities
 - [x] **Two clocks** — 5 min abandonment, 15 s explicit back. Back _shortens_
       the hold rather than deleting it
 
-### Milestone 2 — show lifecycle
+### Milestone 2 — show lifecycle ✅ DONE (2026-08-24)
 
-- [ ] Cancel a show: fan-out cancellation, notify every customer, close waitlists
-- [ ] Organiser cancels their own; admin cancels anything
+- [x] Cancel a show: fan-out cancellation, notify every customer, close waitlists
+- [x] Organiser cancels their own; admin cancels anything
 
 ### Milestone 3 — evaluation criteria (highest grade impact, do first if time is short)
 

@@ -230,9 +230,24 @@ class ShowDetail(BaseModel):
 
     id: str
     startsAt: str  # noqa: N815 - wire format
+    status: str
     event: ShowEvent
     count: dict[str, int] = Field(alias="_count")
 
 
 class ShowDetailResult(BaseModel):
     show: ShowDetail
+
+
+class ShowCancelled(BaseModel):
+    """What cancelling a show actually did, so the caller can say it plainly."""
+
+    id: str
+    status: str
+    bookingsCancelled: int  # noqa: N815 - wire format
+    customersNotified: int  # noqa: N815 - wire format
+    waitlistClosed: int  # noqa: N815 - wire format
+
+
+class ShowCancelledResult(BaseModel):
+    show: ShowCancelled

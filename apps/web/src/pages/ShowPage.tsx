@@ -16,6 +16,7 @@ import './show.css';
 type ShowDetail = {
   id: string;
   startsAt: string;
+  status: 'SCHEDULED' | 'CANCELLED';
   event: {
     id: string;
     title: string;
@@ -142,6 +143,38 @@ export function ShowPage() {
   if (!show.data) return null;
 
   const detail = show.data.show;
+
+  // A cancelled show keeps its seat map — cancelling resets every seat to
+  // AVAILABLE — so without this the page would look like a normal, entirely
+  // bookable performance. The API refuses the hold, but nobody should get that
+  // far to find out.
+  if (detail.status === 'CANCELLED') {
+    return (
+      <div className="showpage">
+        <nav aria-label="Breadcrumb" className="detail__crumbs">
+          <Link to="/">Events</Link>
+          <span aria-hidden="true">/</span>
+          <Link to={`/events/${detail.event.id}`}>{detail.event.title}</Link>
+          <span aria-hidden="true">/</span>
+          <span aria-current="page">Cancelled</span>
+        </nav>
+        <Card className="pad">
+          <h1 className="showpage__title">{detail.event.title}</h1>
+          <p className="showpage__meta">
+            {formatShowDate(detail.startsAt)} at {formatShowTime(detail.startsAt)} ·{' '}
+            {detail.event.venue.name}
+          </p>
+          <Alert>
+            This performance has been cancelled by the organiser. Any bookings for it have been
+            cancelled and refunded, and the customers emailed.
+          </Alert>
+          <Link to={`/events/${detail.event.id}`} className="btn btn--cta">
+            See other dates
+          </Link>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="showpage">

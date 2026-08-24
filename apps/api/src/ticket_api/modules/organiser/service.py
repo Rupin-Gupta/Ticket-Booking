@@ -191,6 +191,7 @@ async def event_summary(event_id: str, caller: TokenPayload) -> EventSummary:
             ShowSummary(
                 id=show.id,
                 startsAt=iso(show.starts_at) or "",
+                status=show.status.value,
                 capacity=seats,
                 seatsSold=seats_sold,
                 revenue=money(revenue),

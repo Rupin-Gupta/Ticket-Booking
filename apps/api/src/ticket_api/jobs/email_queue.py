@@ -25,6 +25,7 @@ from ..db import Session
 from ..lib.emails import (
     booking_cancelled_email,
     booking_confirmed_email,
+    show_cancelled_email,
     waitlist_offer_email,
 )
 from ..lib.mailer import Mail, send_mail
@@ -44,7 +45,7 @@ from ..models import (
     utcnow,
 )
 
-EmailKind = Literal["booking-confirmed", "booking-cancelled", "waitlist-offer"]
+EmailKind = Literal["booking-confirmed", "booking-cancelled", "show-cancelled", "waitlist-offer"]
 
 
 class EmailJob(TypedDict, total=False):
@@ -149,6 +150,22 @@ async def send_email(_ctx: dict[str, Any], job: EmailJob) -> None:
         ).all()
 
     seats = [f"{seat.row}{seat.number}" for _, seat in rows]
+
+    if job["kind"] == "show-cancelled":
+        await send_mail(
+            Mail(
+                to=customer.email,
+                subject=f"Cancelled — {event.title}",
+                html=show_cancelled_email(
+                    reference=booking.reference,
+                    event_title=event.title,
+                    venue=venue.name,
+                    starts_at=_utc_string(show.starts_at),
+                    seats=seats,
+                ),
+            )
+        )
+        return
 
     if job["kind"] == "booking-cancelled":
         await send_mail(

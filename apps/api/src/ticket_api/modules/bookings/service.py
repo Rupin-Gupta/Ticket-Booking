@@ -16,6 +16,7 @@ from ...models import (
     SeatStatus,
     Show,
     ShowSeat,
+    ShowStatus,
     Venue,
     iso,
 )
@@ -57,6 +58,13 @@ async def create_booking(show_id: str, seat_ids: list[str], caller: TokenPayload
     of paying for.
     """
     async with transaction() as session:
+        # A cancelled show keeps its seat rows, and cancelling resets them to
+        # AVAILABLE — so without this the seat map would happily sell a ticket
+        # to a performance that is not happening.
+        status = await session.scalar(select(Show.status).where(Show.id == show_id))
+        if status is ShowStatus.CANCELLED:
+            raise ApiError.conflict("SHOW_CANCELLED", "This show has been cancelled.")
+
         rows = (
             (await session.execute(_LOCK_AND_READ, {"seat_ids": seat_ids, "show_id": show_id}))
             .mappings()

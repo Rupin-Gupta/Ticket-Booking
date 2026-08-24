@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../lib/api.js';
+import { messageFor } from '../auth/AuthContext.js';
 import { useAsync } from '../lib/useAsync.js';
 import { formatPrice, formatShowDate, formatShowTime, isoDate } from '../lib/format.js';
-import { Alert, Card, EmptyState, Skeleton } from '../components/ui.js';
+import { Alert, Button, Card, EmptyState, Skeleton } from '../components/ui.js';
 import './dashboard.css';
 
 type Summary = {
@@ -28,6 +30,7 @@ type Summary = {
   shows: {
     id: string;
     startsAt: string;
+    status: 'SCHEDULED' | 'CANCELLED';
     capacity: number;
     seatsSold: number;
     revenue: string;
@@ -42,7 +45,7 @@ type Summary = {
  */
 export function DashboardPage() {
   const { id } = useParams<{ id: string }>();
-  const { data, error, loading } = useAsync(
+  const { data, error, loading, reload } = useAsync(
     () => api.get<Summary>(`/api/v1/organiser/events/${id}/summary`),
     [id],
   );
@@ -156,6 +159,9 @@ export function DashboardPage() {
                   <th scope="col" className="num">
                     Revenue
                   </th>
+                  <th scope="col">
+                    <span className="sr-only">Actions</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -174,6 +180,9 @@ export function DashboardPage() {
                     <td className="num">{s.bookings}</td>
                     <td className="num">{s.cancelled || '—'}</td>
                     <td className="num strong">{formatPrice(s.revenue)}</td>
+                    <td>
+                      <CancelShow show={s} onCancelled={reload} />
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -187,6 +196,53 @@ export function DashboardPage() {
         never changes what past bookings were worth. Cancelled bookings are excluded.
       </p>
     </div>
+  );
+}
+
+/**
+ * Cancelling lives here rather than on the event editor because this is the
+ * only screen that shows what is at stake: how many seats are sold and what
+ * they were worth. The confirm names both.
+ */
+function CancelShow({
+  show,
+  onCancelled,
+}: {
+  show: Summary['shows'][number];
+  onCancelled: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (show.status === 'CANCELLED') {
+    return <span className="dash__cancelled">Cancelled</span>;
+  }
+
+  async function cancel() {
+    const stake =
+      show.seatsSold > 0
+        ? `${show.seatsSold} sold ${show.seatsSold === 1 ? 'seat' : 'seats'} worth ${formatPrice(show.revenue)} will be refunded and every affected customer emailed.`
+        : 'Nothing is sold yet.';
+    if (!confirm(`Cancel the show on ${formatShowDate(show.startsAt)}?\n\n${stake}`)) return;
+    setError(null);
+    setBusy(true);
+    try {
+      await api.post(`/api/v1/shows/${show.id}/cancel`, {});
+      onCancelled();
+    } catch (err) {
+      setError(messageFor(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <Button variant="quiet" loading={busy} onClick={cancel}>
+        Cancel
+      </Button>
+      {error && <Alert>{error}</Alert>}
+    </>
   );
 }
 

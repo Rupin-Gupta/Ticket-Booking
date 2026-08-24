@@ -17,7 +17,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ...config import settings
 from ...db import Session, transaction
 from ...errors import ApiError
-from ...models import Seat, SeatCategory, SeatStatus, Show, ShowSeat, iso, money, utcnow
+from ...models import (
+    Seat,
+    SeatCategory,
+    SeatStatus,
+    Show,
+    ShowSeat,
+    ShowStatus,
+    iso,
+    money,
+    utcnow,
+)
 from ...realtime.emit import broadcast_seats, broadcast_status
 from .schemas import ExtendResult, HoldResult, HoldSeatsInput, MyHold, ReleaseResult, SeatView
 
@@ -137,6 +147,23 @@ _LOCK_AND_READ = text(
 ).bindparams(bindparam("seat_ids", type_=ARRAY(Text)))
 
 
+async def _assert_show_scheduled(show_id: str) -> None:
+    """
+    Refuses a hold on a cancelled show.
+
+    Cancelling resets every seat to AVAILABLE, so the seat map reads perfectly
+    bookable; without this check a customer could hold — and then buy — seats
+    at a performance that is not happening. Checked outside the transaction for
+    the same reason the hold cap is: it is a precondition, not a race, and a
+    query inside a lock-holding transaction is time other contenders spend
+    blocked.
+    """
+    async with Session() as session:
+        status = await session.scalar(select(Show.status).where(Show.id == show_id))
+    if status is ShowStatus.CANCELLED:
+        raise ApiError.conflict("SHOW_CANCELLED", "This show has been cancelled.")
+
+
 async def hold_seats(show_id: str, data: HoldSeatsInput, user_id: str) -> HoldResult:
     """
     Places a hold on a set of seats. The ordering below is deliberate:
@@ -159,6 +186,7 @@ async def hold_seats(show_id: str, data: HoldSeatsInput, user_id: str) -> HoldRe
     # costs a narrow race in which a determined customer holds one more show
     # than the cap allows; keeping it inside cost real requests a 500 under load.
     await _assert_within_hold_cap(user_id, show_id)
+    await _assert_show_scheduled(show_id)
 
     async with transaction() as session:
         rows = (

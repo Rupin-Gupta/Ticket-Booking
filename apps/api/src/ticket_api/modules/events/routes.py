@@ -16,6 +16,7 @@ from .schemas import (
     EventWrittenResult,
     ListEventsQuery,
     OwnEventsResult,
+    ShowCancelledResult,
     ShowCreatedResult,
     ShowDetailResult,
     UpdateEventInput,
@@ -85,6 +86,11 @@ async def create_show(
 
 
 # --- Shows are addressed on their own path; the seat map hangs off this too.
+
+
+@show_router.post("/{show_id}/cancel", response_model=ShowCancelledResult)
+async def cancel_show(show_id: str, caller: RequireOrganiser) -> ShowCancelledResult:
+    return ShowCancelledResult(show=await service.cancel_show(show_id, caller))
 
 
 @show_router.get("/{show_id}", response_model=ShowDetailResult)

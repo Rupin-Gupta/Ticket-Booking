@@ -2,27 +2,34 @@ from __future__ import annotations
 
 from psycopg.errors import UniqueViolation
 from sqlalchemy import delete as sql_delete
-from sqlalchemy import distinct, func, select
+from sqlalchemy import distinct, func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...db import Session, transaction
 from ...errors import ApiError
+from ...jobs.email_queue import enqueue_email
 from ...models import (
     Booking,
+    BookingSeat,
+    BookingStatus,
     Event,
     Role,
     Seat,
     SeatCategory,
+    SeatStatus,
     Show,
     ShowSeat,
+    ShowStatus,
     User,
     Venue,
     WaitlistEntry,
+    WaitlistStatus,
     iso,
     money,
     utcnow,
 )
+from ...realtime.emit import broadcast_status
 from ...security import TokenPayload
 from ..venues.scheduling import assert_venue_free, occupied_window
 from .schemas import (
@@ -36,6 +43,7 @@ from .schemas import (
     ListEventsQuery,
     OrganiserRef,
     OwnEvent,
+    ShowCancelled,
     ShowCreated,
     ShowDetail,
     ShowEvent,
@@ -136,10 +144,15 @@ async def _event_out(
         .all()
     )
 
-    # Only upcoming shows: a listing full of last month's dates is noise.
+    # Only upcoming, still-scheduled shows: a listing full of last month's
+    # dates is noise, and a cancelled show is not something to sell.
     show_query = (
         select(Show)
-        .where(Show.event_id == event.id, Show.starts_at >= utcnow())
+        .where(
+            Show.event_id == event.id,
+            Show.starts_at >= utcnow(),
+            Show.status == ShowStatus.SCHEDULED,
+        )
         .order_by(Show.starts_at.asc())
     )
     if show_limit is not None:
@@ -491,6 +504,7 @@ async def get_show(show_id: str) -> ShowDetail:
     return ShowDetail(
         id=show.id,
         startsAt=iso(show.starts_at) or "",
+        status=show.status.value,
         event=ShowEvent(
             id=event.id,
             title=event.title,
@@ -548,3 +562,138 @@ async def delete_event(event_id: str, caller: TokenPayload) -> None:
         await session.execute(sql_delete(SeatCategory).where(SeatCategory.event_id == event_id))
         await session.delete(event)
         await session.commit()
+
+
+async def cancel_show(show_id: str, caller: TokenPayload) -> ShowCancelled:
+    """
+    Cancels a show and unwinds everything hanging off it.
+
+    The order matters, and so does what is deliberately *not* done:
+
+      1. lock the show, refuse if already cancelled or already started
+      2. cancel every confirmed booking and release its seats
+      3. close every waitlist entry — WAITING and OFFERED alike
+      4. reset the show's seats so nothing reads as claimed
+      5. after the commit: email the affected customers, tell the room
+
+    **`advance_waitlist()` is not called here, and that is the point.** Every
+    other path that frees a seat offers it to the next person in line; this one
+    must not, because the seat being freed belongs to a show that is no longer
+    happening. Handing it on would email somebody an offer for a cancelled
+    show — a rule-3 exception, so it is written down rather than left to be
+    rediscovered.
+
+    Cancelling also frees the venue slot with no extra work: the exclusion
+    constraint is partial on `status = 'SCHEDULED'`, so the row stops
+    participating the moment it flips.
+    """
+    async with transaction() as session:
+        show = (
+            (await session.execute(select(Show).where(Show.id == show_id).with_for_update()))
+            .scalars()
+            .first()
+        )
+        if show is None:
+            raise ApiError.not_found("SHOW_NOT_FOUND", "No show with that id.")
+
+        await _assert_owns(session, show.event_id, caller)
+
+        if show.status is ShowStatus.CANCELLED:
+            raise ApiError.conflict("SHOW_ALREADY_CANCELLED", "That show is already cancelled.")
+
+        now = utcnow()
+        if show.starts_at <= now:
+            # Cancelling a show the audience is already sitting in is not a
+            # booking problem, and refunding it automatically would be wrong.
+            raise ApiError.conflict(
+                "SHOW_ALREADY_STARTED", "This show has already started and cannot be cancelled."
+            )
+
+        show.status = ShowStatus.CANCELLED
+
+        live = (
+            await session.execute(
+                select(Booking.id, Booking.customer_id).where(
+                    Booking.show_id == show_id, Booking.status == BookingStatus.CONFIRMED
+                )
+            )
+        ).all()
+        booking_ids = [row.id for row in live]
+        # One customer holding three bookings is one person to email, not three
+        # notifications — the count reported back should say so.
+        customers = len({row.customer_id for row in live})
+
+        if booking_ids:
+            await session.execute(
+                update(Booking)
+                .where(Booking.id.in_(booking_ids))
+                .values(status=BookingStatus.CANCELLED, cancelled_at=now)
+            )
+            # Release the claim without deleting the row — the price paid is
+            # revenue history, and the email still needs the seat labels.
+            await session.execute(
+                update(BookingSeat)
+                .where(BookingSeat.booking_id.in_(booking_ids), BookingSeat.released_at.is_(None))
+                .values(released_at=now)
+            )
+
+        waitlist_closed = int(
+            await session.scalar(
+                select(func.count(WaitlistEntry.id)).where(
+                    WaitlistEntry.show_id == show_id,
+                    WaitlistEntry.status.in_([WaitlistStatus.WAITING, WaitlistStatus.OFFERED]),
+                )
+            )
+            or 0
+        )
+        if waitlist_closed:
+            # The offer token goes too. It is a bearer credential for a seat at
+            # a show that no longer exists, and a live token outliving its
+            # purpose is exactly the kind of thing that gets redeemed later.
+            await session.execute(
+                update(WaitlistEntry)
+                .where(
+                    WaitlistEntry.show_id == show_id,
+                    WaitlistEntry.status.in_([WaitlistStatus.WAITING, WaitlistStatus.OFFERED]),
+                )
+                .values(
+                    status=WaitlistStatus.CANCELLED,
+                    offered_seat_id=None,
+                    offer_token=None,
+                    offer_expires_at=None,
+                )
+            )
+
+        seat_ids = list(
+            (await session.execute(select(ShowSeat.id).where(ShowSeat.show_id == show_id)))
+            .scalars()
+            .all()
+        )
+        # Nothing is held, offered or booked on a cancelled show. Leaving rows
+        # reading BOOKED while their booking says CANCELLED is a lie the seat
+        # map would happily render.
+        await session.execute(
+            update(ShowSeat)
+            .where(ShowSeat.show_id == show_id)
+            .values(
+                status=SeatStatus.AVAILABLE,
+                held_by_user_id=None,
+                hold_expires_at=None,
+                offer_expires_at=None,
+            )
+        )
+
+    # After the commit, never inside it: a rolled-back transaction must not have
+    # already emailed anybody that their show is off.
+    for booking_id in booking_ids:
+        await enqueue_email({"kind": "show-cancelled", "bookingId": booking_id})
+
+    broadcast_status(show_id, seat_ids, SeatStatus.AVAILABLE.value)
+
+    return ShowCancelled(
+        id=show_id,
+        status=ShowStatus.CANCELLED.value,
+        bookingsCancelled=len(booking_ids),
+        customersNotified=customers,
+        waitlistClosed=waitlist_closed,
+    )

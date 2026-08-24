@@ -778,3 +778,34 @@ the seats' effective status instead of shipping a fixed `AVAILABLE`. A customer
 who extends inside the window would otherwise have every viewer told their seat
 was free — a lie no sweeper tick would correct until the real TTL. Same reason
 the sweeper re-verifies at fire time.
+
+---
+
+## ADR-034 — Cancelling a show does not advance the waitlist
+
+**Accepted** · 2026-08-24
+
+`POST /shows/:id/cancel` flips the show to `CANCELLED`, cancels every confirmed
+booking, releases their `BookingSeat` claims, closes every waitlist entry, and
+resets the show's seats. It does **not** call `advance_waitlist()`.
+
+_Why that is worth writing down:_ rule 2 says every path that frees a seat calls
+the same `advance_waitlist()`. This is the one exception, and it is not an
+oversight. Every other free-up — a cancelled booking, an expired offer — frees a
+seat at a show that is still happening, so the next person in line wants it.
+Here the seat belongs to a performance that is not happening, and offering it
+would email somebody a time-limited claim on a cancelled show.
+
+_Waitlist entries are closed rather than left `WAITING`:_ their `offerToken` is
+cleared with them. A live bearer token for a seat at a show that no longer
+exists is exactly the kind of thing that gets redeemed six weeks later.
+
+_Seats are reset to `AVAILABLE`:_ leaving rows reading `BOOKED` while their
+booking says `CANCELLED` is a contradiction the seat map would happily render.
+That reset is why the hold and booking paths both grew an explicit
+`SHOW_CANCELLED` guard — after cancellation the seat map looks perfectly
+bookable, and only the show's status says otherwise.
+
+_The venue slot frees itself._ The exclusion constraint from ADR-032 is partial
+on `status = 'SCHEDULED'`, so flipping the status is the entire mechanism: no
+cleanup code, and the slot reopens for another show the moment it commits.

@@ -191,3 +191,12 @@
 .dash__table tbody tr:last-child th {
   border-bottom: 0;
 }
+
+/* A cancelled show stays in the table — its revenue history still counts —
+   but it reads as struck through rather than actionable. */
+.dash__cancelled {
+  font-size: var(--text-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}

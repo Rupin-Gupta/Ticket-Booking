@@ -37,6 +37,7 @@ class CategorySummary(BaseModel):
 class ShowSummary(BaseModel):
     id: str
     startsAt: str  # noqa: N815 - wire format
+    status: str
     capacity: int
     seatsSold: int  # noqa: N815 - wire format
     revenue: str

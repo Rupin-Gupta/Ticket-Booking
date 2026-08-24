@@ -85,6 +85,28 @@ def booking_cancelled_email(*, reference: str, event_title: str, seats: list[str
     <p style="margin:0;font-size:14px;color:#475569">The QR code on that ticket no longer works.</p>""")
 
 
+def show_cancelled_email(
+    *, reference: str, event_title: str, venue: str, starts_at: str, seats: list[str]
+) -> str:
+    """
+    The show is off. Different from a customer cancelling their own booking:
+    they did not choose this, so it says who cancelled and what happens next
+    rather than just confirming an action they took.
+    """
+    return _wrap(f"""
+    <p style="margin:0 0 4px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#b91c1c">Show cancelled</p>
+    <h1 style="margin:0 0 16px;font-size:22px">{_esc(event_title)}</h1>
+    <p style="margin:0 0 12px;font-size:14px;color:#475569">
+      The performance at {_esc(venue)} on {_esc(starts_at)} has been cancelled by
+      the organiser. Your booking <strong>{_esc(reference)}</strong> for
+      {_esc(", ".join(seats))} has been cancelled with it, and you are not being
+      charged.
+    </p>
+    <p style="margin:0;font-size:14px;color:#475569">
+      The QR code on that ticket no longer works. Nothing is needed from you.
+    </p>""")
+
+
 def waitlist_offer_email(
     *,
     event_title: str,
