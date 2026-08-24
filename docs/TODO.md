@@ -298,9 +298,14 @@ Specs: [venue capabilities and booking flow](specs/2026-08-23-venue-capabilities
 
 ### Milestone 4 — seat map hierarchy
 
-- [ ] Row labels down both sides; section bands naming section, category, price
+- [ ] Row labels down **both** sides; section bands naming section, category,
+      price. _Partly done 2026-08-24_: labels run down the left only, and there
+      are no section bands yet
 - [ ] Tier by **price rank**, never by category name
-- [ ] Centre-stage rendering; live viewer presence count
+- [x] **Centre-stage rendering** (2026-08-24) — the seat map and the admin
+      preview both place radial coordinates by absolute offset, since CSS grid
+      cannot hold a fractional, half-negative coordinate space
+- [ ] Live viewer presence count
 
 ### Milestone 5 — seat signals
 
@@ -357,8 +362,9 @@ they all passed.
       hand-maintaining it. Now possible and strictly better; deliberately left
       out of the port because the frontend was out of scope and no test would
       have caught a mistake there.
-- [ ] **Milestone 0/1 must be re-planned.** The committed plan
-      (the Milestone 1 plan)
-      is TypeScript task-by-task and is superseded. The _design_ it implements
-      (venue capabilities, no double-booking, three-page flow, two-clock TTL)
-      still stands — only the plan needs rewriting.
+- [x] **Milestone 0/1 re-planned against Python and delivered** (2026-08-24).
+      The TypeScript plan was superseded; the design it implements (venue
+      capabilities, no double-booking, three-page flow, two-clock TTL) stood
+      unchanged and shipped. Both plans are in git history if the reasoning is
+      ever wanted: the TypeScript one at `171ee83^`, the Python one at
+      `7b4c7a7^`.
