@@ -243,3 +243,22 @@
 .seat {
   position: relative;
 }
+
+/* Access is shape plus a mark, never colour: colour already carries status, and
+   a wheelchair space that differs only in hue is invisible to exactly the
+   people most likely to be looking for it. */
+.seat--access {
+  border-radius: 2px;
+  border-width: 2px;
+  font-size: 11px;
+}
+.seat--wheelchair_space {
+  outline: 1px dashed var(--border-strong);
+  outline-offset: 1px;
+}
+.seat--companion {
+  border-style: dashed;
+}
+.seat--step_free {
+  border-bottom-width: 3px;
+}

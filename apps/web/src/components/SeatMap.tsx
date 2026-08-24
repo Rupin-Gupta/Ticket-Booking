@@ -9,6 +9,23 @@ type Props = {
   disabled?: boolean;
 };
 
+/**
+ * Access is conveyed by shape and mark, never by colour alone — colour is
+ * already carrying status, and a wheelchair space that differs only in hue is
+ * invisible to the people most likely to need it.
+ */
+const ACCESS_MARK: Record<string, string> = {
+  WHEELCHAIR_SPACE: '\u267F',
+  COMPANION: '+',
+  STEP_FREE: '\u2191',
+};
+
+const ACCESS_LABEL: Record<string, string> = {
+  WHEELCHAIR_SPACE: 'wheelchair space, booked with its companion seat',
+  COMPANION: 'companion seat, booked with its wheelchair space',
+  STEP_FREE: 'step-free access',
+};
+
 /** What a seat can be, from this viewer's point of view. */
 type Kind = 'available' | 'selected' | 'mine' | 'held' | 'offered' | 'booked';
 
@@ -93,11 +110,22 @@ export function SeatMap({ seats, selected, onToggle, disabled = false }: Props) 
   const seatButton = (seat: SeatView) => {
     const kind = kindOf(seat, selected);
     const label = `${seat.section} row ${seat.row} seat ${seat.number}`;
+    const access = ACCESS_LABEL[seat.accessType] ? `, ${ACCESS_LABEL[seat.accessType]}` : '';
     return (
       <button
         key={seat.id}
         type="button"
-        className={`seat seat--${kind} seat--tier${ranks.get(seat.categoryId) ?? 1}${seat.hesitation ? ' seat--passedover' : ''}`}
+        className={[
+          'seat',
+          `seat--${kind}`,
+          `seat--tier${ranks.get(seat.categoryId) ?? 1}`,
+          seat.hesitation ? 'seat--passedover' : '',
+          seat.accessType !== 'STANDARD'
+            ? `seat--access seat--${seat.accessType.toLowerCase()}`
+            : '',
+        ]
+          .filter(Boolean)
+          .join(' ')}
         style={
           radial
             ? {
@@ -114,8 +142,8 @@ export function SeatMap({ seats, selected, onToggle, disabled = false }: Props) 
         // Status is in the name, not conveyed by colour alone.
         aria-label={
           seat.hesitation
-            ? `${label}, ${seat.categoryName}, ${LABEL[kind]}, passed over ${seat.hesitation.rowMultiple} times more often than others in row ${seat.row}`
-            : `${label}, ${seat.categoryName}, ${LABEL[kind]}`
+            ? `${label}, ${seat.categoryName}, ${LABEL[kind]}, passed over ${seat.hesitation.rowMultiple} times more often than others in row ${seat.row}${access}`
+            : `${label}, ${seat.categoryName}, ${LABEL[kind]}${access}`
         }
         title={
           seat.hesitation
@@ -126,7 +154,7 @@ export function SeatMap({ seats, selected, onToggle, disabled = false }: Props) 
         }
         onClick={() => onToggle(seat)}
       >
-        <span aria-hidden="true">{seat.number}</span>
+        <span aria-hidden="true">{ACCESS_MARK[seat.accessType] ?? seat.number}</span>
       </button>
     );
   };

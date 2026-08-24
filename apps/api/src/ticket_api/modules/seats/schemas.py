@@ -38,6 +38,12 @@ class SeatView(BaseModel):
     #: seat has enough outcomes to say anything — never a number computed from
     #: three data points.
     hesitation: dict[str, float | int] | None = None
+    #: STANDARD / WHEELCHAIR_SPACE / COMPANION / STEP_FREE. Conveyed by shape
+    #: and icon in the UI, never by colour alone.
+    accessType: str = "STANDARD"  # noqa: N815 - wire format
+    #: The other half of a wheelchair pair, if this seat has one. Selecting
+    #: either half selects both.
+    pairedWith: str | None = None  # noqa: N815 - wire format
 
 
 class SeatMapResult(BaseModel):

@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ...db import Session
 from ...errors import ApiError
 from ...lib.geometry import generate_centre_stage_block, generate_end_stage_block
-from ...models import Event, EventType, Seat, StageLayout, Venue
+from ...models import Event, EventType, Seat, SeatAccessType, StageLayout, Venue
 from .schemas import (
     AddSeatBlockInput,
     CreateVenueInput,
@@ -176,6 +176,7 @@ async def add_seat_block(venue_id: str, data: AddSeatBlockInput) -> SeatBlockRes
                 rows=data.rows, seats_per_row=data.seatsPerRow, start_y=start + 2
             )
 
+        access = SeatAccessType(data.accessType)
         seats = [
             Seat(
                 venue_id=venue_id,
@@ -184,10 +185,36 @@ async def add_seat_block(venue_id: str, data: AddSeatBlockInput) -> SeatBlockRes
                 number=p.number,
                 pos_x=p.pos_x,
                 pos_y=p.pos_y,
+                # A wheelchair block is spaces; their companions are generated
+                # below and sit beside them.
+                access_type=access,
             )
             for p in positions
         ]
         session.add_all(seats)
+
+        companions: list[Seat] = []
+        if access is SeatAccessType.WHEELCHAIR_SPACE:
+            # Every space gets exactly one companion seat, placed immediately to
+            # its right and linked to it. Generating the pair here is what makes
+            # the invariant enforceable later: a space with no companion cannot
+            # be booked as a pair, and a companion with no space is a seat
+            # nobody can reach.
+            await session.flush()
+            companions = [
+                Seat(
+                    venue_id=venue_id,
+                    section=data.section,
+                    row=space.row,
+                    number=space.number + data.seatsPerRow,
+                    pos_x=float(space.pos_x) + 0.5,
+                    pos_y=float(space.pos_y),
+                    access_type=SeatAccessType.COMPANION,
+                    companion_of_id=space.id,
+                )
+                for space in seats
+            ]
+            session.add_all(companions)
 
         try:
             await session.commit()
@@ -201,7 +228,9 @@ async def add_seat_block(venue_id: str, data: AddSeatBlockInput) -> SeatBlockRes
                 ) from err
             raise
 
-    return SeatBlockResult(created=len(seats), section=data.section, startY=start + 2)
+    return SeatBlockResult(
+        created=len(seats) + len(companions), section=data.section, startY=start + 2
+    )
 
 
 async def _lowest_row(session: AsyncSession, venue_id: str) -> float:

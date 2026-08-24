@@ -75,6 +75,13 @@ export function ShowPage() {
       const next = new Set(prev);
       if (next.has(seat.id)) next.delete(seat.id);
       else next.add(seat.id);
+      // A wheelchair space and its companion are held and booked as one unit —
+      // the server enforces it, and the map should not pretend otherwise by
+      // letting somebody select half a pair.
+      if (seat.pairedWith) {
+        if (next.has(seat.id)) next.add(seat.pairedWith);
+        else next.delete(seat.pairedWith);
+      }
       return next;
     });
   }, []);

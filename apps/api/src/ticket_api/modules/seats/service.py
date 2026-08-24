@@ -32,7 +32,15 @@ from ...models import (
 )
 from ...realtime.emit import broadcast_seats, broadcast_status
 from ..signals import service as signals
-from .schemas import ExtendResult, HoldResult, HoldSeatsInput, MyHold, ReleaseResult, SeatView
+from .pairing import expand_pairs
+from .schemas import (
+    ExtendResult,
+    HoldResult,
+    HoldSeatsInput,
+    MyHold,
+    ReleaseResult,
+    SeatView,
+)
 
 # --------------------------------------------------------------- lazy expiry
 
@@ -91,6 +99,15 @@ async def get_seat_map(show_id: str, viewer_id: str | None) -> list[SeatView]:
             )
         ).all()
 
+        # Physical seat id -> ShowSeat id, so a pair can name its other half in
+        # the same terms the client selects with.
+        show_seat_of = {seat.id: show_seat.id for show_seat, seat, _ in rows}
+        partner_of: dict[str, str] = {}
+        for _ss, seat, _cat in rows:
+            if seat.companion_of_id and seat.companion_of_id in show_seat_of:
+                partner_of[seat.id] = show_seat_of[seat.companion_of_id]
+                partner_of[seat.companion_of_id] = show_seat_of[seat.id]
+
     # Only when the organiser has published signals for this event. Off by
     # default, and the extra query is skipped entirely when it is off.
     hesitation = (
@@ -129,6 +146,8 @@ async def get_seat_map(show_id: str, viewer_id: str | None) -> list[SeatView]:
                     if (signal := hesitation.get(seat.id)) and signals.worth_surfacing(signal)
                     else None
                 ),
+                accessType=seat.access_type.value,
+                pairedWith=partner_of.get(seat.id),
             )
         )
     return seats
@@ -198,7 +217,6 @@ async def hold_seats(show_id: str, data: HoldSeatsInput, user_id: str) -> HoldRe
     read AVAILABLE, both write HELD, the second silently wins, and two customers
     own one seat with no error logged anywhere.
     """
-    seat_ids = data.seatIds
     expires_at = utcnow() + timedelta(seconds=settings.HOLD_TTL_SECONDS)
 
     # Checked BEFORE the transaction, on purpose. It is an abuse cap, not a
@@ -208,6 +226,13 @@ async def hold_seats(show_id: str, data: HoldSeatsInput, user_id: str) -> HoldRe
     # than the cap allows; keeping it inside cost real requests a 500 under load.
     await _assert_within_hold_cap(user_id, show_id)
     await _assert_show_scheduled(show_id)
+
+    # A wheelchair space and its companion are one unit: asking for either gets
+    # both. Done before the transaction because it reads static venue geometry,
+    # not contended state — and the widened set is still sorted before locking,
+    # so the deadlock ordering is unchanged.
+    async with Session() as reader:
+        seat_ids = await expand_pairs(reader, show_id, data.seatIds)
 
     async with transaction() as session:
         rows = (

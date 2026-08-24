@@ -24,6 +24,7 @@ from ...models import (
 )
 from ...realtime.emit import broadcast_seats, broadcast_status
 from ...security import TokenPayload
+from ..seats.pairing import expand_pairs
 from ..signals import service as signals
 from ..waitlist.service import PendingOffer, advance_waitlist
 from .schemas import BookingView, CancelResult, TicketView
@@ -61,6 +62,11 @@ async def create_booking(show_id: str, seat_ids: list[str], caller: TokenPayload
     Without that check anyone could book seats somebody else is in the middle
     of paying for.
     """
+    # Same expansion as the hold path: a pair is booked together or not at all.
+    # Without it somebody could hold a pair and then book only the space.
+    async with Session() as reader:
+        seat_ids = await expand_pairs(reader, show_id, seat_ids)
+
     async with transaction() as session:
         # A cancelled show keeps its seat rows, and cancelling resets them to
         # AVAILABLE — so without this the seat map would happily sell a ticket

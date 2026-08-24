@@ -53,7 +53,13 @@ export type SeatView = {
    * seat has enough outcomes to support a number.
    */
   hesitation: { ratio: number; rowMultiple: number; sample: number } | null;
+  /** STANDARD | WHEELCHAIR_SPACE | COMPANION | STEP_FREE */
+  accessType: SeatAccessType;
+  /** The other half of a wheelchair pair. Selecting either selects both. */
+  pairedWith: string | null;
 };
+
+export type SeatAccessType = 'STANDARD' | 'WHEELCHAIR_SPACE' | 'COMPANION' | 'STEP_FREE';
 
 /** Every API failure has this shape, from every route. */
 export type ApiErrorBody = {

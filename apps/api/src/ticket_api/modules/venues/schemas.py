@@ -59,6 +59,9 @@ class AddSeatBlockInput(BaseModel):
     section: str = Field(min_length=1, max_length=40)
     rows: int = Field(ge=1, le=26)
     seatsPerRow: int = Field(ge=1, le=60)  # noqa: N815 - wire format
+    #: WHEELCHAIR_SPACE generates a companion seat beside every space and links
+    #: the two. STEP_FREE marks the block without pairing anything.
+    accessType: str = "STANDARD"  # noqa: N815 - wire format
     arcStartDegrees: float = Field(default=0, ge=0, le=360)  # noqa: N815 - wire format
     arcSpanDegrees: float = Field(default=360, gt=0, le=360)  # noqa: N815 - wire format
 

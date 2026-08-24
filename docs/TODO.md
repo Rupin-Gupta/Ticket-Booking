@@ -322,9 +322,17 @@ Specs: [venue capabilities and booking flow](specs/2026-08-23-venue-capabilities
 
 - [ ] Signed waitlist receipts and a hash-chained offer log a customer can check
 
-### Milestone 7 — accessible seating
+### Milestone 7 — accessible seating ✅ DONE (2026-08-24)
 
-- [ ] Wheelchair space + companion held and booked atomically
+- [x] Wheelchair space + companion held and booked atomically — expansion before
+      the lock, so neither half is separately obtainable and the sorted lock set
+      is unchanged
+- [x] Venue builder generates and links companions; seat map marks access by
+      shape and icon, never colour alone; selecting either half selects both
+- [ ] **Known limitation, accepted:** a cancelled pair returns to general sale
+      rather than the waitlist. The offer machinery is one seat per entry, so
+      routing a pair through it could half-offer one — which breaks the very
+      invariant this exists to guarantee. Pair-aware offers are a later change
 
 ---
 

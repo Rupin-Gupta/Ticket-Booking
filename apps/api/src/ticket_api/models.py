@@ -117,6 +117,22 @@ class BookingStatus(enum.StrEnum):
     CANCELLED = "CANCELLED"
 
 
+class SeatAccessType(enum.StrEnum):
+    """
+    What kind of space a seat is.
+
+    WHEELCHAIR_SPACE and COMPANION are two halves of one thing: the space, and
+    the seat beside it for whoever comes with. STEP_FREE is unpaired — it means
+    reachable without stairs, which is a property of getting there rather than
+    of the seat.
+    """
+
+    STANDARD = "STANDARD"
+    WHEELCHAIR_SPACE = "WHEELCHAIR_SPACE"
+    COMPANION = "COMPANION"
+    STEP_FREE = "STEP_FREE"
+
+
 class SeatEventKind(enum.StrEnum):
     """
     How a hold ended. The three endings are not the same information.
@@ -210,6 +226,18 @@ class Seat(Base):
     section: Mapped[str] = mapped_column(Text)  # e.g. "Balcony", "Floor"
     row: Mapped[str] = mapped_column(Text)  # e.g. "A"
     number: Mapped[int] = mapped_column(Integer)  # e.g. 12
+    access_type: Mapped[SeatAccessType] = mapped_column(
+        "accessType",
+        pg_enum(SeatAccessType, "SeatAccessType"),
+        default=SeatAccessType.STANDARD,
+        server_default="STANDARD",
+    )
+    #: A COMPANION points at the WHEELCHAIR_SPACE it belongs to. The pair is
+    #: held, booked and released as one unit — neither half is separately
+    #: obtainable.
+    companion_of_id: Mapped[str | None] = mapped_column(
+        "companionOfId", Text, ForeignKey("Seat.id"), nullable=True
+    )
     pos_x: Mapped[float] = mapped_column("posX", Numeric(asdecimal=False))
     pos_y: Mapped[float] = mapped_column("posY", Numeric(asdecimal=False))
 
@@ -427,6 +455,7 @@ __all__ = [
     "EventType",
     "Role",
     "Seat",
+    "SeatAccessType",
     "SeatCategory",
     "SeatEvent",
     "SeatEventKind",
