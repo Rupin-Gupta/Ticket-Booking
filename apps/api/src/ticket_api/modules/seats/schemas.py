@@ -33,6 +33,11 @@ class SeatView(BaseModel):
     heldByMe: bool  # noqa: N815 - wire format
     #: The countdown is the holder's business alone; null for everyone else.
     holdExpiresAt: str | None = None  # noqa: N815 - wire format
+    #: How often this seat is picked up and put back down, relative to its own
+    #: row. Null unless the organiser published signals for this event AND the
+    #: seat has enough outcomes to say anything — never a number computed from
+    #: three data points.
+    hesitation: dict[str, float | int] | None = None
 
 
 class SeatMapResult(BaseModel):

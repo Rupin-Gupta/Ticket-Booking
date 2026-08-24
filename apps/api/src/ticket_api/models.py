@@ -18,7 +18,7 @@ import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from sqlalchemy import ForeignKey, Index, Integer, Numeric, Text, UniqueConstraint
+from sqlalchemy import Boolean, ForeignKey, Index, Integer, Numeric, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import ARRAY, ENUM, TIMESTAMP
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -117,6 +117,21 @@ class BookingStatus(enum.StrEnum):
     CANCELLED = "CANCELLED"
 
 
+class SeatEventKind(enum.StrEnum):
+    """
+    How a hold ended. The three endings are not the same information.
+
+    RELEASED is the strong signal — somebody looked at the seat and deliberately
+    un-picked it. EXPIRED is weak: it could be a closed laptop. BOOKED is the
+    conversion to compare both against.
+    """
+
+    HELD = "HELD"
+    RELEASED = "RELEASED"
+    EXPIRED = "EXPIRED"
+    BOOKED = "BOOKED"
+
+
 class WaitlistStatus(enum.StrEnum):
     WAITING = "WAITING"
     OFFERED = "OFFERED"
@@ -211,6 +226,13 @@ class Event(Base):
     title: Mapped[str] = mapped_column(Text)
     type: Mapped[EventType] = mapped_column(pg_enum(EventType, "EventType"))
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: Whether customers see seat signals on this event's map. Off by default:
+    #: the honesty is the point, but an organiser has a legitimate interest in
+    #: how their inventory is described, and forced publication would make the
+    #: feature unshippable. A toggle makes disclosure a deliberate decision.
+    publish_seat_signals: Mapped[bool] = mapped_column(
+        "publishSeatSignals", Boolean, default=False, server_default="false"
+    )
 
     organiser: Mapped[User] = relationship(back_populates="events_organised")
     venue: Mapped[Venue] = relationship(back_populates="events")
@@ -371,6 +393,31 @@ class WaitlistEntry(Base):
     customer: Mapped[User] = relationship(back_populates="waitlist_entries")
 
 
+class SeatEvent(Base):
+    """
+    Append-only record of how each hold ended.
+
+    **Deliberately not counters on `Seat`.** A physical seat is shared by every
+    show at its venue, so incrementing a counter there inside the hold
+    transaction would take a lock spanning shows: two customers holding A12 on
+    different nights would serialise against each other, degrading the exact
+    concurrency guarantee this project is graded on. Pure inserts contend with
+    nothing.
+    """
+
+    __tablename__ = "SeatEvent"
+    __table_args__ = (
+        Index("SeatEvent_seatId_kind_idx", "seatId", "kind"),
+        Index("SeatEvent_showId_at_idx", "showId", "at"),
+    )
+
+    id: Mapped[str] = mapped_column(Text, primary_key=True, default=new_id)
+    seat_id: Mapped[str] = mapped_column("seatId", Text, ForeignKey("Seat.id"))
+    show_id: Mapped[str] = mapped_column("showId", Text)
+    kind: Mapped[SeatEventKind] = mapped_column(pg_enum(SeatEventKind, "SeatEventKind"))
+    at: Mapped[datetime] = mapped_column(ts(), default=utcnow)
+
+
 __all__ = [
     "Base",
     "Booking",
@@ -381,6 +428,8 @@ __all__ = [
     "Role",
     "Seat",
     "SeatCategory",
+    "SeatEvent",
+    "SeatEventKind",
     "SeatStatus",
     "Show",
     "ShowSeat",

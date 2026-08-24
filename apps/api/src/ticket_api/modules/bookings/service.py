@@ -13,6 +13,7 @@ from ...models import (
     Event,
     Role,
     Seat,
+    SeatEventKind,
     SeatStatus,
     Show,
     ShowSeat,
@@ -23,6 +24,7 @@ from ...models import (
 )
 from ...realtime.emit import broadcast_seats, broadcast_status
 from ...security import TokenPayload
+from ..signals import service as signals
 from ..waitlist.service import PendingOffer, advance_waitlist
 from .schemas import BookingView, CancelResult, TicketView
 from .write import booking_view, write_booking
@@ -37,7 +39,8 @@ _LOCK_AND_READ = text(
            ss."holdExpiresAt",
            ss."categoryId",
            s.row               AS "seatRow",
-           s.number            AS "seatNumber"
+           s.number            AS "seatNumber",
+           s.id                AS "physicalSeatId"
     FROM "ShowSeat" ss
     JOIN "Seat" s ON s.id = ss."seatId"
     WHERE ss.id = ANY(:seat_ids)
@@ -109,6 +112,9 @@ async def create_booking(show_id: str, seat_ids: list[str], caller: TokenPayload
     # fail a booking the customer has already made.
     await enqueue_email({"kind": "booking-confirmed", "bookingId": booking_id})
     broadcast_status(show_id, seat_ids, SeatStatus.BOOKED.value)
+    # The conversion, and the denominator every hesitation ratio is measured
+    # against. After commit like everything else here.
+    await signals.record([(r["physicalSeatId"], show_id, SeatEventKind.BOOKED) for r in rows])
 
     return view
 

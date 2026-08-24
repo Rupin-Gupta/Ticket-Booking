@@ -52,6 +52,8 @@ class UpdateEventInput(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=160)
     type: EventType | None = None
     description: str | None = Field(default=None, max_length=2000)
+    #: Whether customers see seat signals on this event's map. Default off.
+    publishSeatSignals: bool | None = None  # noqa: N815 - wire format
 
     _normalise = field_validator("title", "description", mode="before")(_trim)
 

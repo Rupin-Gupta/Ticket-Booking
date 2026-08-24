@@ -18,8 +18,10 @@ from ...config import settings
 from ...db import Session, transaction
 from ...errors import ApiError
 from ...models import (
+    Event,
     Seat,
     SeatCategory,
+    SeatEventKind,
     SeatStatus,
     Show,
     ShowSeat,
@@ -29,6 +31,7 @@ from ...models import (
     utcnow,
 )
 from ...realtime.emit import broadcast_seats, broadcast_status
+from ..signals import service as signals
 from .schemas import ExtendResult, HoldResult, HoldSeatsInput, MyHold, ReleaseResult, SeatView
 
 # --------------------------------------------------------------- lazy expiry
@@ -70,9 +73,13 @@ async def get_seat_map(show_id: str, viewer_id: str | None) -> list[SeatView]:
     one requester and is then dropped (RULE 8).
     """
     async with Session() as session:
-        exists = await session.scalar(select(Show.id).where(Show.id == show_id))
-        if exists is None:
+        show = (await session.execute(select(Show).where(Show.id == show_id))).scalars().first()
+        if show is None:
             raise ApiError.not_found("SHOW_NOT_FOUND", "No show with that id.")
+
+        event = (
+            (await session.execute(select(Event).where(Event.id == show.event_id))).scalars().one()
+        )
 
         rows = (
             await session.execute(
@@ -83,6 +90,12 @@ async def get_seat_map(show_id: str, viewer_id: str | None) -> list[SeatView]:
                 .order_by(Seat.pos_y.asc(), Seat.pos_x.asc())
             )
         ).all()
+
+    # Only when the organiser has published signals for this event. Off by
+    # default, and the extra query is skipped entirely when it is off.
+    hesitation = (
+        await signals.hesitation_by_seat(event.venue_id) if event.publish_seat_signals else {}
+    )
 
     now = utcnow()
     seats: list[SeatView] = []
@@ -109,6 +122,13 @@ async def get_seat_map(show_id: str, viewer_id: str | None) -> list[SeatView]:
                 status=status,
                 heldByMe=mine,
                 holdExpiresAt=iso(show_seat.hold_expires_at) if mine else None,
+                # Surfaced only when this seat is clearly worse than its own
+                # row. A seat that is merely average says nothing worth saying.
+                hesitation=(
+                    signal
+                    if (signal := hesitation.get(seat.id)) and signals.worth_surfacing(signal)
+                    else None
+                ),
             )
         )
     return seats
@@ -136,7 +156,8 @@ _LOCK_AND_READ = text(
            ss."holdExpiresAt",
            ss."offerExpiresAt",
            s.row            AS "seatRow",
-           s.number         AS "seatNumber"
+           s.number         AS "seatNumber",
+           s.id             AS "physicalSeatId"
     FROM "ShowSeat" ss
     JOIN "Seat" s ON s.id = ss."seatId"
     WHERE ss.id = ANY(:seat_ids)
@@ -228,11 +249,15 @@ async def hold_seats(show_id: str, data: HoldSeatsInput, user_id: str) -> HoldRe
                 offer_expires_at=None,
             )
         )
+        # Captured inside the transaction only as data; the write happens after
+        # the commit, below.
+        physical_ids = [r["physicalSeatId"] for r in rows]
 
     # After commit, never inside: a rolled-back transaction that had already
     # told every browser the seat was taken would leave them all permanently
     # wrong.
     broadcast_status(show_id, seat_ids, SeatStatus.HELD.value)
+    await signals.record([(pid, show_id, SeatEventKind.HELD) for pid in physical_ids])
     return HoldResult(showId=show_id, seatIds=seat_ids, holdExpiresAt=iso(expires_at) or "")
 
 
@@ -285,23 +310,22 @@ async def release_holds(show_id: str, user_id: str) -> ReleaseResult:
     free_at = utcnow() + timedelta(seconds=settings.RELEASE_GRACE_SECONDS)
 
     async with Session() as session:
-        ids = (
-            (
-                await session.execute(
-                    # Scoped to this user's own holds. Without held_by_user_id in
-                    # the filter this endpoint would free anyone's seats.
-                    select(ShowSeat.id).where(
-                        ShowSeat.show_id == show_id,
-                        ShowSeat.held_by_user_id == user_id,
-                        ShowSeat.status == SeatStatus.HELD,
-                    )
+        held = (
+            await session.execute(
+                # Scoped to this user's own holds. Without held_by_user_id in
+                # the filter this endpoint would free anyone's seats.
+                # seat_id comes along so the release can be attributed to the
+                # physical seat after the commit.
+                select(ShowSeat.id, ShowSeat.seat_id).where(
+                    ShowSeat.show_id == show_id,
+                    ShowSeat.held_by_user_id == user_id,
+                    ShowSeat.status == SeatStatus.HELD,
                 )
             )
-            .scalars()
-            .all()
-        )
-        if not ids:
+        ).all()
+        if not held:
             return ReleaseResult(released=0, freeAt=iso(free_at) or "")
+        ids = [row.id for row in held]
 
         await session.execute(
             update(ShowSeat).where(ShowSeat.id.in_(ids)).values(hold_expires_at=free_at)
@@ -312,6 +336,9 @@ async def release_holds(show_id: str, user_id: str) -> ReleaseResult:
     # broadcast now — see _schedule_status_rebroadcast for why this cannot just
     # send a fixed AVAILABLE payload.
     _schedule_status_rebroadcast(show_id, list(ids))
+
+    # The strong signal: somebody looked at these seats and put them back.
+    await signals.record([(row.seat_id, show_id, SeatEventKind.RELEASED) for row in held])
 
     return ReleaseResult(released=len(ids), freeAt=iso(free_at) or "")
 
@@ -491,7 +518,7 @@ async def sweep_expired_holds(session: AsyncSession | None = None) -> int:
         # browser anything useful.
         expired = (
             await own.execute(
-                select(ShowSeat.id, ShowSeat.show_id)
+                select(ShowSeat.id, ShowSeat.show_id, ShowSeat.seat_id)
                 .where(
                     ShowSeat.status == SeatStatus.HELD,
                     ShowSeat.hold_expires_at <= utcnow(),
@@ -516,5 +543,11 @@ async def sweep_expired_holds(session: AsyncSession | None = None) -> int:
         by_show.setdefault(row.show_id, []).append(row.id)
     for show_id, seat_ids in by_show.items():
         broadcast_status(show_id, seat_ids, SeatStatus.AVAILABLE.value)
+
+    # Weak signal — a closed laptop looks exactly like this — but recorded,
+    # because "nobody came back" is still information about a seat.
+    await signals.record(
+        [(row.seat_id, row.show_id, SeatEventKind.EXPIRED) for row in expired if row.seat_id]
+    )
 
     return result.rowcount or 0

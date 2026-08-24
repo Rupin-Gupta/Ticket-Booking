@@ -47,6 +47,12 @@ export type SeatView = {
   heldByMe: boolean;
   /** Present only when this requester is the one holding it. */
   holdExpiresAt: string | null;
+  /**
+   * How often this seat is picked up and put back down, relative to its own
+   * row. Null unless the organiser published signals for this event AND the
+   * seat has enough outcomes to support a number.
+   */
+  hesitation: { ratio: number; rowMultiple: number; sample: number } | null;
 };
 
 /** Every API failure has this shape, from every route. */

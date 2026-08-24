@@ -12,6 +12,7 @@ from ...models import (
     BookingStatus,
     Event,
     Role,
+    Seat,
     SeatCategory,
     Show,
     ShowSeat,
@@ -22,10 +23,12 @@ from ...models import (
     money,
 )
 from ...security import TokenPayload
+from ..signals import service as signals
 from .schemas import (
     CategorySummary,
     EventRef,
     EventSummary,
+    SeatSignal,
     ShowSummary,
     Totals,
 )
@@ -204,6 +207,32 @@ async def event_summary(event_id: str, caller: TokenPayload) -> EventSummary:
     total_capacity = sum(s.capacity for s in per_show)
     total_sold = sum(s.seatsSold for s in per_show)
 
+    # Always computed for the organiser: the publish toggle governs what
+    # CUSTOMERS see, not whether the person selling the seats may look.
+    raw = await signals.hesitation_by_seat(event.venue_id)
+    labelled: list[Seat] = []
+    if raw:
+        async with Session() as session:
+            labelled = list(
+                (await session.execute(select(Seat).where(Seat.id.in_(list(raw.keys())))))
+                .scalars()
+                .all()
+            )
+    seat_signals = sorted(
+        (
+            SeatSignal(
+                seatId=s.id,
+                label=f"{s.row}{s.number}",
+                section=s.section,
+                ratio=float(raw[s.id]["ratio"]),
+                rowMultiple=float(raw[s.id]["rowMultiple"]),
+                sample=int(raw[s.id]["sample"]),
+            )
+            for s in labelled
+        ),
+        key=lambda s: (-s.rowMultiple, -s.ratio),
+    )[:10]
+
     return EventSummary(
         event=EventRef(id=event.id, title=event.title, type=event.type, venue=venue.name),
         totals=Totals(
@@ -219,4 +248,6 @@ async def event_summary(event_id: str, caller: TokenPayload) -> EventSummary:
         ),
         categories=per_category,
         shows=per_show,
+        seatSignals=seat_signals,
+        publishSeatSignals=event.publish_seat_signals,
     )

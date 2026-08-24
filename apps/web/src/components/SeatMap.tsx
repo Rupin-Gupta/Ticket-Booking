@@ -97,7 +97,7 @@ export function SeatMap({ seats, selected, onToggle, disabled = false }: Props) 
       <button
         key={seat.id}
         type="button"
-        className={`seat seat--${kind} seat--tier${ranks.get(seat.categoryId) ?? 1}`}
+        className={`seat seat--${kind} seat--tier${ranks.get(seat.categoryId) ?? 1}${seat.hesitation ? ' seat--passedover' : ''}`}
         style={
           radial
             ? {
@@ -112,8 +112,18 @@ export function SeatMap({ seats, selected, onToggle, disabled = false }: Props) 
         disabled={disabled || !takeable(kind)}
         aria-pressed={kind === 'selected'}
         // Status is in the name, not conveyed by colour alone.
-        aria-label={`${label}, ${seat.categoryName}, ${LABEL[kind]}`}
-        title={`${seat.row}${seat.number} · ${seat.categoryName}`}
+        aria-label={
+          seat.hesitation
+            ? `${label}, ${seat.categoryName}, ${LABEL[kind]}, passed over ${seat.hesitation.rowMultiple} times more often than others in row ${seat.row}`
+            : `${label}, ${seat.categoryName}, ${LABEL[kind]}`
+        }
+        title={
+          seat.hesitation
+            ? // Never a cause. "Passed over more often" is what the data
+              // supports; "obstructed view" would be a guess dressed as a fact.
+              `${seat.row}${seat.number} · ${seat.categoryName} — passed over ${seat.hesitation.rowMultiple}× more often than other seats in row ${seat.row} (${seat.hesitation.sample} holds)`
+            : `${seat.row}${seat.number} · ${seat.categoryName}`
+        }
         onClick={() => onToggle(seat)}
       >
         <span aria-hidden="true">{seat.number}</span>

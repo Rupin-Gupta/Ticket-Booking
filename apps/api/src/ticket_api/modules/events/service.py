@@ -240,10 +240,17 @@ async def update_event(event_id: str, data: UpdateEventInput, caller: TokenPaylo
     # different requests, and a PATCH that left out `description` means leave it.
     changes = data.model_dump(exclude_none=True)
 
+    # Wire names are camelCase and ORM attributes are snake_case. Where they
+    # happen to match, setattr works by luck; where they do not, an unmapped key
+    # sets a stray attribute on the instance and silently never reaches the
+    # database. Naming the translation stops the next added field from being a
+    # silent no-op.
+    ATTR = {"publishSeatSignals": "publish_seat_signals"}
+
     async with Session() as session:
         event = await _assert_owns(session, event_id, caller)
         for key, value in changes.items():
-            setattr(event, key, value)
+            setattr(event, ATTR.get(key, key), value)
         await session.commit()
         await session.refresh(event)
 

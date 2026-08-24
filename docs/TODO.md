@@ -310,11 +310,13 @@ Specs: [venue capabilities and booking flow](specs/2026-08-23-venue-capabilities
 - [x] Live viewer presence count (2026-08-24) — counted from room membership,
       so a dropped connection corrects itself instead of drifting upward
 
-### Milestone 5 — seat signals
+### Milestone 5 — seat signals ✅ DONE (2026-08-24)
 
-- [ ] `SeatEvent` capture, written **after commit**, never inside the lock
-- [ ] Hesitation Index ⭐ and cancellation-rate quality; organiser-visible with a
-      per-event publish toggle
+- [x] `SeatEvent` capture, written **after commit**, never inside the lock —
+      append-only, never counters on `Seat`, which would lock across shows
+- [x] Hesitation Index ⭐ organiser-visible, with a per-event publish toggle
+      (default off). Minimum sample of 5, compared against the seat's own row,
+      surfaced only above 1.5x, and it never states a cause
 
 ### Milestone 6 — verifiable fairness
 

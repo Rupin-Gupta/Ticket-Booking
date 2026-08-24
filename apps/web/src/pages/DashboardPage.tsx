@@ -27,6 +27,15 @@ type Summary = {
     revenue: string;
     waiting: number;
   }[];
+  publishSeatSignals: boolean;
+  seatSignals: {
+    seatId: string;
+    label: string;
+    section: string;
+    ratio: number;
+    rowMultiple: number;
+    sample: number;
+  }[];
   shows: {
     id: string;
     startsAt: string;
@@ -191,6 +200,8 @@ export function DashboardPage() {
         )}
       </Card>
 
+      <SeatSignals summary={data} onToggled={reload} />
+
       <p className="dash__foot">
         Revenue is summed from the price each seat was actually sold at, so re-pricing a category
         never changes what past bookings were worth. Cancelled bookings are excluded.
@@ -243,6 +254,95 @@ function CancelShow({
       </Button>
       {error && <Alert>{error}</Alert>}
     </>
+  );
+}
+
+/**
+ * The seats customers keep putting back down.
+ *
+ * States what happened and never why. "Passed over 3x more often than others in
+ * row F" is what the data supports; "obstructed view" is a guess dressed as a
+ * fact, and an organiser acting on it would move the wrong chairs.
+ */
+function SeatSignals({ summary, onToggled }: { summary: Summary; onToggled: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function togglePublish() {
+    setError(null);
+    setBusy(true);
+    try {
+      await api.patch(`/api/v1/events/${summary.event.id}`, {
+        publishSeatSignals: !summary.publishSeatSignals,
+      });
+      onToggled();
+    } catch (err) {
+      setError(messageFor(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card className="pad">
+      <h2 className="dash__h2">Hardest to sell</h2>
+      {error && <Alert>{error}</Alert>}
+
+      {summary.seatSignals.length === 0 ? (
+        <EmptyState title="Not enough data yet.">
+          A seat needs at least five outcomes before it is worth saying anything about.
+        </EmptyState>
+      ) : (
+        <>
+          <div className="tablewrap">
+            <table className="dash__table">
+              <thead>
+                <tr>
+                  <th scope="col">Seat</th>
+                  <th scope="col">Section</th>
+                  <th scope="col" className="num">
+                    Passed over
+                  </th>
+                  <th scope="col" className="num">
+                    vs its row
+                  </th>
+                  <th scope="col" className="num">
+                    Holds
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {summary.seatSignals.map((s) => (
+                  <tr key={s.seatId}>
+                    <th scope="row">{s.label}</th>
+                    <td>{s.section}</td>
+                    <td className="num">{Math.round(s.ratio * 100)}%</td>
+                    <td className="num strong">{s.rowMultiple}x</td>
+                    <td className="num">{s.sample}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <p className="dash__foot">
+            Measured per physical seat across every show at this venue, compared against the mean
+            for that seat's own row — a popular show produces abandonments everywhere, and a row
+            comparison normalises for a section being unpopular generally. It says what happened,
+            never why.
+          </p>
+        </>
+      )}
+
+      <Button variant="quiet" loading={busy} onClick={togglePublish}>
+        {summary.publishSeatSignals ? 'Stop showing customers' : 'Show these to customers'}
+      </Button>
+      <p className="dash__foot">
+        {summary.publishSeatSignals
+          ? 'Customers currently see a marker on these seats.'
+          : 'Off by default. Only you see this.'}
+      </p>
+    </Card>
   );
 }
 

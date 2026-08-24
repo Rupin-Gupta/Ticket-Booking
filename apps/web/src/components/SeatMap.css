@@ -225,3 +225,21 @@
 .seat--available.seat--tier2 {
   box-shadow: inset 0 -2px 0 var(--seat-offered, #b45309);
 }
+
+/* A seat people keep putting back. Deliberately a small corner mark rather than
+   a colour: status must stay the loudest thing on the map, and this is a
+   footnote, not a warning. The tooltip and the accessible name carry the
+   number — and never a reason for it. */
+.seat--passedover::after {
+  content: '';
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--text-faint);
+}
+.seat {
+  position: relative;
+}
