@@ -269,22 +269,16 @@ Specs: [venue capabilities and booking flow](superpowers/specs/2026-08-23-venue-
       fall back under `NODE_ENV=test`, and the same guard now covers Redis.
       ADR-030.
 
-### Milestone 1 — venue capabilities, scheduling, booking flow
+### Milestone 1 — venue capabilities, scheduling, booking flow ✅ DONE (2026-08-24)
 
-> **Status: 0 of 7 done.** The implementation plan for this
-> (`superpowers/plans/2026-08-23-venue-capabilities-and-booking-flow.md`) was
-> written against TypeScript and is superseded by the port. The **spec** it
-> implements still stands — only the plan needs rewriting against FastAPI and
-> SQLAlchemy.
-
-- [ ] `Venue.stageLayout` (END_STAGE / CENTRE_STAGE) + radial seat generation
-- [ ] `Venue.allowedEventTypes` + `turnaroundMinutes`; centre-stage cannot allow MOVIE
-- [ ] `Show.durationMinutes` / `endsAt` / `occupiesUntil`, organiser supplies duration
-- [ ] **No double-booking a venue** — app-level check plus a Postgres GiST
+- [x] `Venue.stageLayout` (END_STAGE / CENTRE_STAGE) + radial seat generation
+- [x] `Venue.allowedEventTypes` + `turnaroundMinutes`; centre-stage cannot allow MOVIE
+- [x] `Show.durationMinutes` / `endsAt` / `occupiesUntil`, organiser supplies duration
+- [x] **No double-booking a venue** — app-level check plus a Postgres GiST
       exclusion constraint, partial on `status` so a cancelled show frees its slot
-- [ ] Section-wise pricing UI showing each section's seat count
-- [ ] **Three-page flow** — select (no lock) → Continue (locks) → checkout → ticket
-- [ ] **Two clocks** — 5 min abandonment, 15 s explicit back. Back _shortens_
+- [x] Section-wise pricing UI showing each section's seat count
+- [x] **Three-page flow** — select (no lock) → Continue (locks) → checkout → ticket
+- [x] **Two clocks** — 5 min abandonment, 15 s explicit back. Back _shortens_
       the hold rather than deleting it
 
 ### Milestone 2 — show lifecycle
