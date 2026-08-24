@@ -9,7 +9,10 @@ from . import service
 from .schemas import (
     JoinInput,
     MyWaitlistResult,
+    OfferLogResult,
     OfferResult,
+    ReceiptCheck,
+    ReceiptCheckInput,
     WaitlistJoined,
     WaitlistLeft,
 )
@@ -31,6 +34,23 @@ async def join(show_id: str, body: JoinInput, user: CurrentUser) -> WaitlistJoin
 @router.get("/me", response_model=MyWaitlistResult)
 async def list_mine(user: CurrentUser) -> MyWaitlistResult:
     return MyWaitlistResult(entries=await service.list_mine(user))
+
+
+@router.get("/log/{show_id}", response_model=OfferLogResult)
+async def offer_log(show_id: str) -> OfferLogResult:
+    """
+    Public: the hash-chained record of every offer made on this show.
+
+    Deliberately unauthenticated. A fairness log only means something if anyone
+    can read it — including the customer who suspects they were skipped.
+    """
+    return await service.offer_log(show_id)
+
+
+@router.post("/receipt/verify", response_model=ReceiptCheck)
+async def verify_receipt(body: ReceiptCheckInput) -> ReceiptCheck:
+    """Public: does this receipt carry a genuine signature from this server?"""
+    return ReceiptCheck(valid=service.check_receipt(body.payload, body.signature))
 
 
 @router.delete("/{entry_id}", response_model=WaitlistLeft)

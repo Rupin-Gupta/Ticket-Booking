@@ -11,6 +11,7 @@ from ...db import Session, transaction
 from ...errors import ApiError
 from ...models import (
     Event,
+    OfferLog,
     Role,
     SeatCategory,
     SeatStatus,
@@ -26,7 +27,16 @@ from ...models import (
 from ...realtime.emit import broadcast_seats, broadcast_status
 from ...security import TokenPayload, random_token
 from ..bookings.write import booking_view, write_booking
-from .schemas import MyWaitlistEntry, OfferView, WaitlistJoined, WaitlistLeft
+from . import fairness
+from .schemas import (
+    LogRow,
+    MyWaitlistEntry,
+    OfferLogResult,
+    OfferView,
+    Receipt,
+    WaitlistJoined,
+    WaitlistLeft,
+)
 
 
 @dataclass(slots=True)
@@ -154,6 +164,19 @@ async def advance_waitlist(session: AsyncSession, show_seat_id: str) -> PendingO
         )
     )
 
+    # Inside this transaction on purpose. Unlike seat signals, a missing row
+    # here would not be a lost data point — it would read as evidence that an
+    # offer which really happened never did.
+    await fairness.append_offer(
+        session,
+        show_id=seat["showId"],
+        category_id=seat["categoryId"],
+        entry_id=entry["id"],
+        show_seat_id=show_seat_id,
+        position=1,  # the offer always goes to the front of the queue
+        at=utcnow(),
+    )
+
     return PendingOffer(entry_id=entry["id"], show_seat_id=show_seat_id)
 
 
@@ -265,7 +288,18 @@ async def join(show_id: str, category_id: str, caller: TokenPayload) -> Waitlist
 
         position = await _position_of(session, show_id, category_id, entry.joined_at)
 
-    return WaitlistJoined(id=entry.id, position=position)
+    payload = fairness.receipt_payload(
+        entry_id=entry.id,
+        show_id=show_id,
+        category_id=category_id,
+        joined_at=entry.joined_at,
+        position=position,
+    )
+    return WaitlistJoined(
+        id=entry.id,
+        position=position,
+        receipt=Receipt(payload=payload, signature=fairness.sign(payload)),
+    )
 
 
 async def list_mine(caller: TokenPayload) -> list[MyWaitlistEntry]:
@@ -590,3 +624,53 @@ async def sweep_expired_offers() -> tuple[int, list[PendingOffer]]:
         broadcast_seats(show_id, [{"id": seat_id, "status": status}])
 
     return len(due), offers
+
+
+async def offer_log(show_id: str) -> OfferLogResult:
+    """
+    The public offer chain for a show, plus a recomputed verdict on it.
+
+    Public, and it names entries and seats rather than customers — who is
+    waiting for what is nobody else's business, and the chain does not need to
+    know in order to be checkable.
+
+    `intact` is recomputed here as a convenience. Nobody has to believe it: the
+    rows carry every hash, so a customer can replay the chain themselves with a
+    hash function and no secret. Verification that requires trusting the
+    verifier proves nothing.
+    """
+    async with Session() as session:
+        rows = list(
+            (
+                await session.execute(
+                    select(OfferLog).where(OfferLog.show_id == show_id).order_by(OfferLog.seq.asc())
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+    intact, broken_at = fairness.replay(rows)
+    return OfferLogResult(
+        showId=show_id,
+        rows=[
+            LogRow(
+                seq=r.seq,
+                categoryId=r.category_id,
+                entryId=r.entry_id,
+                showSeatId=r.show_seat_id,
+                position=r.position,
+                at=iso(r.at) or "",
+                prevHash=r.prev_hash,
+                hash=r.hash,
+            )
+            for r in rows
+        ],
+        intact=intact,
+        brokenAt=broken_at,
+    )
+
+
+def check_receipt(payload: dict[str, object], signature: str) -> bool:
+    """Whether a receipt was really issued by this server, unaltered."""
+    return fairness.verify(payload, signature)

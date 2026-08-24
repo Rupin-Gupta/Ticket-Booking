@@ -421,6 +421,37 @@ class WaitlistEntry(Base):
     customer: Mapped[User] = relationship(back_populates="waitlist_entries")
 
 
+class OfferLog(Base):
+    """
+    A hash-chained record of every waitlist offer, in the order it was made.
+
+    Each row's hash covers the previous row's hash, so altering or removing an
+    earlier offer breaks every hash after it. That does not make tampering
+    impossible — someone with database access could rewrite the whole chain —
+    but it makes the quiet, partial kind detectable by anyone holding a copy.
+
+    Public by design: it names entries and seats, never customers.
+    """
+
+    __tablename__ = "OfferLog"
+    __table_args__ = (
+        # One sequence per show, so a busy venue's chains stay independent.
+        UniqueConstraint("showId", "seq", name="OfferLog_show_seq_key"),
+        Index("OfferLog_showId_seq_idx", "showId", "seq"),
+    )
+
+    id: Mapped[str] = mapped_column(Text, primary_key=True, default=new_id)
+    show_id: Mapped[str] = mapped_column("showId", Text)
+    category_id: Mapped[str] = mapped_column("categoryId", Text)
+    entry_id: Mapped[str] = mapped_column("entryId", Text)
+    show_seat_id: Mapped[str] = mapped_column("showSeatId", Text)
+    position: Mapped[int] = mapped_column(Integer)
+    seq: Mapped[int] = mapped_column(Integer)
+    at: Mapped[datetime] = mapped_column(ts(), default=utcnow)
+    prev_hash: Mapped[str] = mapped_column("prevHash", Text)
+    hash: Mapped[str] = mapped_column(Text)
+
+
 class SeatEvent(Base):
     """
     Append-only record of how each hold ended.
@@ -449,6 +480,7 @@ class SeatEvent(Base):
 __all__ = [
     "Base",
     "Booking",
+    "OfferLog",
     "BookingSeat",
     "BookingStatus",
     "Event",

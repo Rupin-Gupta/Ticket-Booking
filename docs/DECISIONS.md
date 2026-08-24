@@ -809,3 +809,43 @@ bookable, and only the show's status says otherwise.
 _The venue slot frees itself._ The exclusion constraint from ADR-032 is partial
 on `status = 'SCHEDULED'`, so flipping the status is the entire mechanism: no
 cleanup code, and the slot reopens for another show the moment it commits.
+
+---
+
+## ADR-035 — Fairness is made checkable, not merely asserted
+
+**Accepted** · 2026-08-24
+
+The waitlist is FIFO by `joinedAt`, and until now a customer had to take that on
+faith: the system says they were fourth, and the same system decides who gets
+the seat. Two mechanisms change that.
+
+**A signed receipt at join time.** `POST /shows/:id/waitlist` returns an
+HMAC-SHA256 over the facts that decide a place — queue, join time, position.
+The customer cannot forge one, and the server cannot later rewrite the facts
+without the signature failing. `POST /waitlist/receipt/verify` is public.
+
+**A hash-chained offer log.** Every offer appends an `OfferLog` row whose hash
+covers the previous row's hash, so altering or removing an earlier offer breaks
+every hash after it. `GET /waitlist/log/:showId` is public and unauthenticated:
+a fairness log only means anything if the customer who suspects they were
+skipped can read it.
+
+_The honest limit._ Neither stops an operator with database access from
+rewriting the whole chain from scratch. What they do is make the realistic kind
+of tampering — quiet and partial — leave evidence. Publishing hashes externally
+would close the gap and is a later change, named rather than built.
+
+_The log names entries and seats, never customers._ It is public, and who is
+waiting for which seat is nobody else's business. A test asserts no email
+address or customer id appears in the payload.
+
+_`intact` is recomputed server-side as a convenience and nobody has to believe
+it._ The rows carry every hash, so the chain can be replayed with a hash
+function and no secret — verification that requires trusting the verifier
+proves nothing.
+
+_Timestamps are truncated to milliseconds before hashing._ The column is
+`TIMESTAMP(3)`; hashing microsecond precision produced a chain that never
+verified against what was stored, because the hash covered a timestamp that
+existed nowhere. Found by the first test run of the chain.

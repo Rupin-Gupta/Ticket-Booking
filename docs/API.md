@@ -68,6 +68,9 @@ here; no API route can grant either role.
 | ✅  | `POST /shows/:id/cancel`      | ORGANISER | Cancels the show, its confirmed bookings and its waitlist; resets its seats and frees the venue slot. Returns what it did — `bookingsCancelled`, `customersNotified`, `waitlistClosed`. `409 SHOW_ALREADY_CANCELLED`, `409 SHOW_ALREADY_STARTED`. Ownership-checked; ADMIN may cancel any. Deliberately does **not** advance the waitlist (ADR-034). |
 | ✅  | `GET /shows/:id`              | public    | Show, its event, venue, pricing, and seat count.                                                                                                                                                                                                                                                                                                     |
 
+| ✅ | `GET /waitlist/log/:showId` | public | The hash-chained record of every offer made on this show, plus a recomputed `intact` verdict. Names entries and seats, never customers (ADR-035). |
+| ✅ | `POST /waitlist/receipt/verify` | public | `{ payload, signature }` → `{ valid }`. Checks a join receipt was issued by this server, unaltered. |
+
 ## Seat map and holds ⭐
 
 |     | Endpoint                       | Role     | Notes                                                                                                                                                                                                                                      |

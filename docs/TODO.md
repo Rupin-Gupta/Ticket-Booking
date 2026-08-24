@@ -318,9 +318,12 @@ Specs: [venue capabilities and booking flow](specs/2026-08-23-venue-capabilities
       (default off). Minimum sample of 5, compared against the seat's own row,
       surfaced only above 1.5x, and it never states a cause
 
-### Milestone 6 — verifiable fairness
+### Milestone 6 — verifiable fairness ✅ DONE (2026-08-24)
 
-- [ ] Signed waitlist receipts and a hash-chained offer log a customer can check
+- [x] Signed waitlist receipts (HMAC over the facts that decide a place) and a
+      public hash-chained offer log a customer can replay without any secret.
+      ADR-035 records the honest limit: it makes quiet, partial tampering
+      evident, it does not make tampering impossible
 
 ### Milestone 7 — accessible seating ✅ DONE (2026-08-24)
 
