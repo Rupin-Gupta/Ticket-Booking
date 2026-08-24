@@ -67,6 +67,8 @@ export const SOCKET_EVENTS = {
   seatSync: 'seat:sync',
   /** server → client: one seat, after every committed mutation */
   seatUpdate: 'seat:update',
+  /** server → client: how many people are watching this show right now */
+  viewers: 'show:viewers',
 } as const;
 
 export const showRoom = (showId: string) => `show:${showId}`;
@@ -91,6 +93,7 @@ export type SeatUpdate = {
 export type ServerEvents = {
   [SOCKET_EVENTS.seatSync]: (payload: { showId: string; seats: SeatView[] }) => void;
   [SOCKET_EVENTS.seatUpdate]: (payload: { showId: string; seats: SeatUpdate[] }) => void;
+  [SOCKET_EVENTS.viewers]: (payload: { showId: string; viewers: number }) => void;
 };
 
 export type ClientEvents = {

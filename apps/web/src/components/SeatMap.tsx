@@ -1,4 +1,5 @@
 import type { SeatView } from '@ticket/shared';
+import { formatPrice } from '../lib/format.js';
 import './SeatMap.css';
 
 type Props = {
@@ -32,6 +33,21 @@ const LABEL: Record<Kind, string> = {
 const takeable = (k: Kind) => k === 'available' || k === 'selected';
 
 /**
+ * Tier by price rank, never by category name.
+ *
+ * "Premium" is a word an organiser chose; £450 is a fact. Ranking by price
+ * means the most expensive band always reads as tier 1 whatever it is called,
+ * and a venue that names its bands Gold/Silver/Bronze or A/B/C tiers correctly
+ * without the map knowing any of those words.
+ */
+function priceRanks(seats: SeatView[]): Map<string, number> {
+  const byCategory = new Map<string, number>();
+  for (const s of seats) byCategory.set(s.categoryId, Number(s.price));
+  const ordered = [...byCategory.entries()].sort((a, b) => b[1] - a[1]);
+  return new Map(ordered.map(([categoryId], i) => [categoryId, i + 1]));
+}
+
+/**
  * A centre-stage venue stores radial coordinates — `radius · cos θ` — so its
  * seats land on fractional, often negative, positions. An end-stage venue is
  * always a non-negative integer grid.
@@ -60,6 +76,20 @@ export function SeatMap({ seats, selected, onToggle, disabled = false }: Props) 
     ? []
     : [...new Map(seats.map((s) => [s.posY, s.row])).entries()].sort((a, b) => a[0] - b[0]);
 
+  const ranks = priceRanks(seats);
+
+  // One band per section, naming what it costs. A seat map without prices makes
+  // people click seats to discover them.
+  const bands = [...new Map(seats.map((s) => [s.section, s])).values()]
+    .map((s) => ({
+      section: s.section,
+      categoryName: s.categoryName,
+      price: formatPrice(s.price),
+      tier: ranks.get(s.categoryId) ?? 1,
+      seats: seats.filter((x) => x.section === s.section).length,
+    }))
+    .sort((a, b) => a.tier - b.tier || a.section.localeCompare(b.section));
+
   const seatButton = (seat: SeatView) => {
     const kind = kindOf(seat, selected);
     const label = `${seat.section} row ${seat.row} seat ${seat.number}`;
@@ -67,7 +97,7 @@ export function SeatMap({ seats, selected, onToggle, disabled = false }: Props) 
       <button
         key={seat.id}
         type="button"
-        className={`seat seat--${kind}`}
+        className={`seat seat--${kind} seat--tier${ranks.get(seat.categoryId) ?? 1}`}
         style={
           radial
             ? {
@@ -139,10 +169,35 @@ export function SeatMap({ seats, selected, onToggle, disabled = false }: Props) 
             >
               {seats.map(seatButton)}
             </div>
+            {/* The same labels again on the right. In a wide hall the left
+                gutter is off-screen by the time you reach the far aisle, which
+                is exactly where somebody is hunting for their row. */}
+            <div
+              className="seatmap__rowlabels"
+              aria-hidden="true"
+              style={{ gridTemplateRows: `repeat(${rows}, var(--seat-size))` }}
+            >
+              {rowLabels.map(([y, row]) => (
+                <span key={y} style={{ gridRow: y - minY + 1 }}>
+                  {row}
+                </span>
+              ))}
+            </div>
           </div>
         )}
         {!radial && <p className="seatmap__screen">Screen</p>}
       </div>
+
+      <ul className="seatmap__bands">
+        {bands.map((b) => (
+          <li key={b.section} className={`seatmap__band seatmap__band--tier${b.tier}`}>
+            <span className="seatmap__bandname">{b.section}</span>
+            <span className="seatmap__bandmeta">
+              {b.categoryName} · {b.price} · {b.seats} {b.seats === 1 ? 'seat' : 'seats'}
+            </span>
+          </li>
+        ))}
+      </ul>
 
       <ul className="seatmap__legend">
         {(['available', 'selected', 'mine', 'held', 'booked'] as const).map((kind) => (

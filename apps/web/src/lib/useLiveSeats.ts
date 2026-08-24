@@ -32,6 +32,7 @@ type Options = {
 export function useLiveSeats({ showId, initial, refetch }: Options) {
   const [seats, setSeats] = useState<SeatView[]>(initial);
   const [live, setLive] = useState(false);
+  const [viewers, setViewers] = useState(0);
 
   // Held in a ref so the socket effect does not tear down and reconnect every
   // time the seat list changes.
@@ -97,6 +98,10 @@ export function useLiveSeats({ showId, initial, refetch }: Options) {
       }
     });
 
+    socket.on(SOCKET_EVENTS.viewers, (payload: { showId: string; viewers: number }) => {
+      if (payload.showId === showId) setViewers(payload.viewers);
+    });
+
     return () => {
       socket.emit(SOCKET_EVENTS.showLeave, { showId });
       socket.close();
@@ -111,5 +116,7 @@ export function useLiveSeats({ showId, initial, refetch }: Options) {
     return () => clearInterval(timer);
   }, [live]);
 
-  return { seats, live };
+  // Zero while disconnected: an unreachable socket knows nothing about who else
+  // is here, and a stale "12 watching" is worse than no number at all.
+  return { seats, live, viewers: live ? viewers : 0 };
 }

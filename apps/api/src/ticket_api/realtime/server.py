@@ -17,7 +17,7 @@ import socketio
 
 from ..config import ALLOWED_ORIGINS, IS_TEST, settings
 from ..modules.seats.service import get_seat_map
-from .emit import SEAT_SYNC, set_emitter, show_room
+from .emit import SEAT_SYNC, VIEWERS, set_emitter, show_room
 
 #: One socket has no business watching hundreds of shows at once.
 MAX_ROOMS_PER_SOCKET = 10
@@ -82,12 +82,44 @@ def create_socket_server() -> socketio.AsyncServer:
             {"showId": show_id, "seats": [s.model_dump() for s in seats]},
             to=sid,
         )
+        await announce_viewers(show_id)
+
+    async def announce_viewers(show_id: str) -> None:
+        """
+        How many people are looking at this seat map.
+
+        Counted from the room membership rather than kept in a counter, so a
+        dropped connection corrects itself: there is no decrement to miss when a
+        browser dies without saying goodbye.
+
+        ponytail: `manager.get_participants` is per-process. With the Redis
+        manager and several instances this reports the viewers on *this*
+        instance, not the fleet — honest for one instance and never wrong by
+        more than the split. A fleet-wide count needs a shared counter, which
+        needs an expiry story for crashed sockets; not worth it for a number
+        that exists to say "people are here".
+        """
+        room = show_room(show_id)
+        try:
+            count = len({sid for sid, _ in sio.manager.get_participants("/", room)})
+        except Exception:
+            return
+        await sio.emit(VIEWERS, {"showId": show_id, "viewers": count}, room=room)
 
     @sio.on(SHOW_LEAVE)
     async def show_leave(sid: str, payload: dict[str, Any] | None) -> None:
         show_id = (payload or {}).get("showId")
         if isinstance(show_id, str) and show_id:
             await sio.leave_room(sid, show_room(show_id))
+            await announce_viewers(show_id)
+
+    @sio.event
+    async def disconnect(sid: str) -> None:
+        # A closed tab never sends show:leave. Re-announce every room it was in
+        # so the count falls instead of drifting upward for ever.
+        for room in list(sio.rooms(sid)):
+            if room.startswith("show:"):
+                await announce_viewers(room.removeprefix("show:"))
 
     set_emitter(sio)
     print("realtime listening (rooms keyed show:{id})")

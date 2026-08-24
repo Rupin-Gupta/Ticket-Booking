@@ -297,16 +297,18 @@ Specs: [venue capabilities and booking flow](specs/2026-08-23-venue-capabilities
       `/openapi.json`, Swagger UI at `/docs`. This was going to be generated from
       the Zod schemas by hand; the port made it fall out of Pydantic instead.
 
-### Milestone 4 — seat map hierarchy
+### Milestone 4 — seat map hierarchy ✅ DONE (2026-08-24)
 
-- [ ] Row labels down **both** sides; section bands naming section, category,
-      price. _Partly done 2026-08-24_: labels run down the left only, and there
-      are no section bands yet
-- [ ] Tier by **price rank**, never by category name
+- [x] Row labels down **both** sides; section bands naming section, category
+      and price (2026-08-24)
+- [x] Tier by **price rank**, never by category name (2026-08-24) — ranked from
+      the price itself, so Gold/Silver/Bronze or A/B/C tier correctly without
+      the map knowing those words
 - [x] **Centre-stage rendering** (2026-08-24) — the seat map and the admin
       preview both place radial coordinates by absolute offset, since CSS grid
       cannot hold a fractional, half-negative coordinate space
-- [ ] Live viewer presence count
+- [x] Live viewer presence count (2026-08-24) — counted from room membership,
+      so a dropped connection corrects itself instead of drifting upward
 
 ### Milestone 5 — seat signals
 

@@ -13,6 +13,7 @@ from typing import Protocol
 
 SEAT_UPDATE = "seat:update"
 SEAT_SYNC = "seat:sync"
+VIEWERS = "show:viewers"
 
 
 def show_room(show_id: str) -> str:

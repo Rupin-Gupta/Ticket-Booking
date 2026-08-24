@@ -47,7 +47,11 @@ export function ShowPage() {
 
   // Socket.IO keeps the map live; the hook falls back to polling if the socket
   // cannot connect, so the page degrades rather than freezing.
-  const { seats: seatList, live } = useLiveSeats({
+  const {
+    seats: seatList,
+    live,
+    viewers,
+  } = useLiveSeats({
     showId: id!,
     initial: seats.data?.seats ?? EMPTY_SEATS,
     refetch: reloadSeats,
@@ -199,6 +203,12 @@ export function ShowPage() {
           <p className={`livedot ${live ? 'livedot--on' : ''}`} role="status">
             <span aria-hidden="true" />
             {live ? 'Live — updates as others book' : 'Reconnecting…'}
+            {live && viewers > 1 && (
+              <span className="livedot__viewers">
+                {' · '}
+                {viewers} watching
+              </span>
+            )}
           </p>
           {seats.loading && seatList.length === 0 ? (
             <Skeleton count={1} height={260} />

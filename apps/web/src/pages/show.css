@@ -120,3 +120,10 @@
   background: var(--seat-free);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--seat-free) 25%, transparent);
 }
+
+/* Only ever shown when it is more than one, so it reads as "other people are
+   here" rather than reminding you that you exist. */
+.livedot__viewers {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
