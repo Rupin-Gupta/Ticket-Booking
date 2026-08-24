@@ -79,22 +79,18 @@ export function ShowPage() {
 
   async function placeHold() {
     if (!user) {
-      // Send them to log in, and back here afterwards.
       navigate('/login', { state: { from: { pathname: `/shows/${id}` } } });
       return;
     }
     setError(null);
     setBusy(true);
     try {
-      const result = await api.post<Hold>(`/api/v1/shows/${id}/holds`, {
-        seatIds: [...selected],
-      });
-      setHold(result);
-      setSelected(new Set());
-      reloadSeats();
+      await api.post(`/api/v1/shows/${id}/holds`, { seatIds: [...selected] });
+      // Page 2. The lock is acquired here and nowhere earlier — clicking a seat
+      // is browsing, and locking on browse freezes a row for everybody else.
+      navigate(`/shows/${id}/checkout`);
     } catch (err) {
       setError(messageFor(err));
-      // Someone else took a seat — reload so the map stops lying about it.
       reloadSeats();
     } finally {
       setBusy(false);
@@ -249,7 +245,7 @@ export function ShowPage() {
                 disabled={selectedSeats.length === 0}
                 onClick={placeHold}
               >
-                {user ? 'Hold these seats' : 'Log in to hold seats'}
+                {user ? 'Continue' : 'Log in to continue'}
               </Button>
               <p className="basket__note">
                 Held seats are yours for a few minutes while you check out, then released

@@ -7,6 +7,7 @@ import { AppShell } from './components/AppShell.js';
 import { EventsPage } from './pages/EventsPage.js';
 import { EventDetailPage } from './pages/EventDetailPage.js';
 import { ShowPage } from './pages/ShowPage.js';
+import { CheckoutPage } from './pages/CheckoutPage.js';
 import { LoginPage } from './pages/LoginPage.js';
 import { RegisterPage } from './pages/RegisterPage.js';
 import { AdminVenuesPage } from './pages/AdminVenuesPage.js';
@@ -32,6 +33,14 @@ createRoot(root).render(
             <Route path="/events/:id" element={<EventDetailPage />} />
             {/* Public: browsing the seat map needs no account. Holding one does. */}
             <Route path="/shows/:id" element={<ShowPage />} />
+            <Route
+              path="/shows/:id/checkout"
+              element={
+                <RequireAuth>
+                  <CheckoutPage />
+                </RequireAuth>
+              }
+            />
             {/* Where a scanned QR lands. Public by necessity — the person on
                 the door is not logged in. */}
             <Route path="/verify/:token" element={<VerifyPage />} />
