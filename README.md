@@ -8,7 +8,7 @@ every confirmed booking emails a QR code ticket.
 **Live app:** https://ticket-booking-zeta-azure.vercel.app · **API:** https://ticket-booking-api-sisp.onrender.com/health
 
 ```
-120 tests passing · Python 3.12+ · FastAPI · SQLAlchemy 2.0
+169 tests passing · Python 3.12+ · FastAPI · SQLAlchemy 2.0
 20 parallel holds on one seat, over real TCP: 1 x 201, 19 x 409, 0 errors
 ```
 
@@ -44,8 +44,8 @@ every confirmed booking emails a QR code ticket.
 | Role          | Can                                                                                                                                                                        |
 | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Customer**  | Browse and filter events, view a live seat map, hold seats on a timer, book, receive a QR ticket by email, view history, cancel, join a waitlist and claim an offered seat |
-| **Organiser** | Create events at a venue, price each section, schedule shows (which generate the seat map), and read revenue by category and by show                                       |
-| **Admin**     | Create venues and build their seat layouts                                                                                                                                 |
+| **Organiser** | Book a venue for a slot (no double-booking), price each section, schedule shows (which generate the seat map), and read revenue by category and by show                    |
+| **Admin**     | Create venues, build their seat layouts, and set their capabilities — stage layout, which event types they permit, and how long the room needs between shows               |
 
 Roles are assigned server-side only. `POST /auth/register` hard-codes
 `CUSTOMER`, and the request schema has no `role` field at all — organiser and
@@ -192,6 +192,21 @@ idle BullMQ worker's blocking poll costs ~518,000 Redis commands a month against
 Upstash's 500,000 free-tier allowance — a queue here would exhaust the tier in
 about three days, silently. Redis stays for email and the socket adapter, where
 it earns its place. ([ADR-018](docs/DECISIONS.md))
+
+### Two clocks
+
+Abandoning checkout and pressing Back are different events:
+
+| Situation               | Seats free after |
+| ----------------------- | ---------------- |
+| Tab closed, walked away | **5 minutes**    |
+| Explicit back or cancel | **15 seconds**   |
+
+Back does not delete the hold — it _shortens_ it. The owner is kept, so a
+customer who bounces back and forward can reclaim their seats instead of losing
+them to somebody faster. No new mechanism: `effective_status()` makes the seat
+bookable at exactly fifteen seconds, with the sweeper uninvolved.
+([ADR-033](docs/DECISIONS.md))
 
 ```
                   ┌──────────── TTL expires / released ───────┐

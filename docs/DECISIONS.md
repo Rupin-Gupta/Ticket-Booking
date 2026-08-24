@@ -691,3 +691,90 @@ also made the booking tests eight times slower.
 
 _Consequence:_ a fresh clone must start the container before `npm test`. The
 error names the fix rather than failing obscurely.
+
+---
+
+## ADR-031 — Stage layout is stored venue geometry, not a render-time projection
+
+**Accepted** · 2026-08-24
+
+`Venue.stageLayout` decides how the venue builder generates coordinates. A
+centre-stage venue's seats are written with radial `posX`/`posY` at build time.
+
+_Alternative, and an earlier draft of this design:_ layout as a per-event
+projection, computing radial positions at render time so one hall could be
+staged both ways.
+
+_Why not:_ it solved a problem nobody has. A hall built in the round **is** in
+the round. Storing the geometry means the seat map renderer needs no special
+case at all — it already draws whatever coordinates it is given — and the two
+layouts differ only in the stage marker.
+
+_Consequence:_ a venue cannot be re-staged after its seats exist. Build a second
+venue instead. That is the honest model: re-staging a real room means moving real
+chairs.
+
+---
+
+## ADR-032 — Venue double-booking is prevented by a partial exclusion constraint
+
+**Accepted** · 2026-08-24
+
+Two layers. `assert_venue_free()` inside the show-creation transaction locks the
+venue's scheduled shows and produces a message naming the clash. Underneath, a
+Postgres GiST exclusion constraint on `("venueId", tsrange("startsAt",
+"occupiesUntil"))`, partial on `status = 'SCHEDULED'`.
+
+_Why the occupied window is not the show:_ the room has to empty, be cleaned and
+be reset. `occupiesUntil = startsAt + duration + venue.turnaroundMinutes`, with
+turnaround on the venue because a stadium needs longer than a screening room.
+
+_Why `venueId` is denormalised onto `Show`:_ an exclusion constraint spans one
+table. Safe because `Event.venueId` is already immutable — moving an event would
+orphan every `ShowSeat` generated against the old venue's seats. The same trade
+`priceAtBooking` makes.
+
+_Why partial on status:_ cancelling a show frees its slot automatically, with no
+cleanup code. House style, shared with `BookingSeat_showSeatId_live_key` — guard
+the live rows, let the dead ones stay for history.
+
+_`tsrange`, not `tstzrange`:_ the columns are `TIMESTAMP(3)` **without** time
+zone, and the range type has to match the column type or the constraint will not
+build.
+
+_Both layers earn their place._ In the common case the app-level check wins and
+returns a message naming the clashing show. In a genuine race for an empty slot
+the row lock holds nothing — there are no rows yet to lock — and the constraint
+is the only thing deciding a winner. It is not belt-and-braces; drop it and
+concurrent organisers double-book.
+
+_Cost:_ SQLAlchemy cannot express it, so it is hand-written and invisible to the
+models. Recorded in `docs/DEBUGGING.md` as drift a future autogenerate will try
+to drop.
+
+---
+
+## ADR-033 — Holds expire on two clocks
+
+**Accepted** · 2026-08-24
+
+Abandonment gives the full `HOLD_TTL_SECONDS` (300). An explicit back or cancel
+shortens the hold to `RELEASE_GRACE_SECONDS` (15) rather than deleting it.
+
+_Why not delete:_ keeping the owner lets `extend_hold()` restore the full TTL if
+the customer returns, so a mis-clicked Back is recoverable rather than a lost
+seat. Deleting makes that impossible.
+
+_Why not zero:_ bouncing back and forward should not cost somebody their seats to
+a faster customer.
+
+_Why this needed no new mechanism:_ `effective_status()` already treats a lapsed
+lease as free, so the seat becomes bookable at exactly fifteen seconds without
+the sweeper being involved at all. One number changed.
+
+_The delayed broadcast re-reads rather than assuming._ Releasing schedules a
+`seat:update` for the moment the grace window ends, and that callback re-reads
+the seats' effective status instead of shipping a fixed `AVAILABLE`. A customer
+who extends inside the window would otherwise have every viewer told their seat
+was free — a lie no sweeper tick would correct until the real TTL. Same reason
+the sweeper re-verifies at fire time.

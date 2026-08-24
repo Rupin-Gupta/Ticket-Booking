@@ -117,7 +117,7 @@ database activity, which the daily `/health` keep-alive is there to prevent.
     asyncpg.** Supabase's transaction pooler is pgbouncer, which cannot carry
     a prepared statement across pooled connections — it is prepared on one
     backend and executed on another that has never heard of it. asyncpg leaks
-    prepared statements through that pooler *even with its own cache disabled*
+    prepared statements through that pooler _even with its own cache disabled_
     (supabase/supabase#39227, still open at time of writing), and starts
     failing above roughly 100 concurrent requests — which is exactly the shape
     of the concurrency test this project is graded on. psycopg3 was spiked
@@ -128,7 +128,7 @@ database activity, which the daily `/health` keep-alive is there to prevent.
     which rejects them.
 17. **Timestamps crossing the wire go through `iso()`, money through
     `money()`.** `datetime.isoformat()` omits the trailing `Z`, and the browser
-    reads a zone-less timestamp as *local* time — every hold countdown would be
+    reads a zone-less timestamp as _local_ time — every hold countdown would be
     wrong by the viewer's UTC offset, silently, for non-UTC users only. And the
     price column is `Numeric(65, 30)`, so a plain `str()` ships thirty zeros;
     `money()` renders `450`, never `450.000…` and never a float.
@@ -162,6 +162,13 @@ model Venue {
   id      String  @id @default(uuid())
   name    String
   address String
+
+  // Milestone 1. Layout is stored geometry, not a render-time projection —
+  // centre-stage seats are written with radial posX/posY at build time (ADR-031).
+  stageLayout       StageLayout @default(END_STAGE) // END_STAGE | CENTRE_STAGE
+  allowedEventTypes EventType[] @default([MOVIE, CONCERT]) // centre-stage may not allow MOVIE
+  turnaroundMinutes Int         @default(15) // empty, clean, reset — a stadium needs longer
+
   seats   Seat[]
   events  Event[]
 }
@@ -219,6 +226,21 @@ model Show {
   event    Event    @relation(fields: [eventId], references: [id])
   eventId  String
   startsAt DateTime
+
+  // Milestone 1 (ADR-032). venueId is denormalised from the event because an
+  // exclusion constraint spans one table; safe because Event.venueId is
+  // immutable. occupiesUntil = startsAt + duration + venue.turnaroundMinutes.
+  venueId         String
+  durationMinutes Int
+  endsAt          DateTime
+  occupiesUntil   DateTime
+  status          ShowStatus @default(SCHEDULED) // SCHEDULED | CANCELLED
+  // Hand-written in migration c6229b026039_show_no_venue_overlap — SQLAlchemy
+  // cannot express it, and autogenerate will try to drop it:
+  //   ALTER TABLE "Show" ADD CONSTRAINT "show_no_venue_overlap"
+  //     EXCLUDE USING gist ("venueId" WITH =,
+  //       tsrange("startsAt", "occupiesUntil") WITH &&)
+  //     WHERE (status = 'SCHEDULED');
 
   showSeats       ShowSeat[]
   waitlistEntries WaitlistEntry[]
@@ -393,24 +415,15 @@ the index.
 
 ## Current phase
 
-`Python port, in progress (started 2026-08-23). The deployed site is
-intentionally offline for the duration.`
+`Python port complete. Milestone 1 (venue capabilities, scheduling, three-page
+booking flow) complete 2026-08-24 on branch milestone-1-venue-capabilities.
+169 tests green. The deployed site is intentionally offline until the owner
+pushes and re-imports the Render blueprint.`
 
-**Ported and verified against the live database:**
+**Next:** Milestone 2 — show cancellation (cancel a show, refund its bookings,
+free the venue slot). See `docs/TODO.md`.
 
-| Piece | State |
-| --- | --- |
-| Config, engine, ORM (all 10 tables) | done — enums, Decimal and arrays round-trip |
-| Security: Argon2id, HS256, random tokens | done — 20 checks |
-| Auth module + app factory + error shapes | done |
-| Seat map, holds, sweeper | done — **20-way race green over real TCP** |
-
-**Not yet ported:** venues, events/shows, bookings + QR, waitlist + offers,
-organiser dashboard, the ARQ email queue, the Socket.IO server, Alembic, the
-79-test suite, and the `apps/api-py` → `apps/api` swap.
-
-The port is a strict 1:1 rewrite: the existing tests are the specification, and
-no behaviour changes until they all pass. Milestone 0/1 feature work
-(`docs/superpowers/plans/2026-08-23-venue-capabilities-and-booking-flow.md`) is
-**superseded** — it was written against the TypeScript codebase and must be
-re-planned once the port lands.
+**Outstanding from Milestone 1:** the three-page flow was typechecked and built
+but never click-tested in a browser. Two tests would be worth adding: two
+organisers racing for _different but overlapping_ times (only identical times
+are covered concurrently), and the countdown behaviour across the grace window.
