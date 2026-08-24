@@ -313,6 +313,9 @@ class Booking(Base):
     qr_token: Mapped[str] = mapped_column("qrToken", Text, unique=True)
     created_at: Mapped[datetime] = mapped_column("createdAt", ts(), default=utcnow)
     cancelled_at: Mapped[datetime | None] = mapped_column("cancelledAt", ts(), nullable=True)
+    #: When the ticket was admitted at the door. A QR that verifies for ever is
+    #: a QR that can be forwarded and used twice.
+    checked_in_at: Mapped[datetime | None] = mapped_column("checkedInAt", ts(), nullable=True)
 
     customer: Mapped[User] = relationship(back_populates="bookings")
     show: Mapped[Show] = relationship(back_populates="bookings")

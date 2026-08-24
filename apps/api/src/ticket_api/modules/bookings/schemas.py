@@ -80,7 +80,17 @@ class TicketView(BaseModel):
     venue: str
     startsAt: str  # noqa: N815 - wire format
     seats: list[str]
+    #: Null until somebody is admitted on it. The door needs to see this before
+    #: deciding, which is why it is on the public read.
+    checkedInAt: str | None = None  # noqa: N815 - wire format
 
 
 class VerifyResult(BaseModel):
     ticket: TicketView
+
+
+class CheckInResult(BaseModel):
+    ticket: TicketView
+    #: True only for the scan that actually admitted them. A second scan is a
+    #: refusal, not a success.
+    admitted: bool

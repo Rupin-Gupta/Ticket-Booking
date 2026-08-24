@@ -19,6 +19,7 @@ from ...models import (
     ShowStatus,
     Venue,
     iso,
+    utcnow,
 )
 from ...realtime.emit import broadcast_seats, broadcast_status
 from ...security import TokenPayload
@@ -296,4 +297,61 @@ async def verify_ticket(qr_token: str) -> TicketView:
         venue=venue.name,
         startsAt=iso(show.starts_at) or "",
         seats=[f"{s.row}{s.number}" for s in seats],
+        checkedInAt=iso(booking.checked_in_at),
     )
+
+
+async def check_in(qr_token: str, caller: TokenPayload) -> tuple[TicketView, bool]:
+    """
+    Admits a ticket at the door, exactly once.
+
+    **Authenticated, unlike the read.** `GET /verify/:token` is public because
+    the person on the door is not logged in and only needs to see whether a
+    ticket is real. Admitting is a write, and a public write keyed on a bearer
+    token is an attack: photograph somebody's QR — people post them — check it
+    in before they arrive, and they are turned away at the door holding a valid
+    ticket. So the scanner signs in, and only the event's organiser or an admin
+    can burn a ticket.
+
+    Locks the booking row. Two scanners on two doors reading the same QR at the
+    same moment must not both be told "admitted": the second one has to wait,
+    re-read, and be told the time the first one let them in.
+    """
+    async with transaction() as session:
+        booking = (
+            (
+                await session.execute(
+                    select(Booking).where(Booking.qr_token == qr_token).with_for_update()
+                )
+            )
+            .scalars()
+            .first()
+        )
+        if booking is None:
+            raise ApiError.not_found("TICKET_NOT_FOUND", "This ticket is not recognised.")
+
+        show = (
+            (await session.execute(select(Show).where(Show.id == booking.show_id))).scalars().one()
+        )
+        event = (
+            (await session.execute(select(Event).where(Event.id == show.event_id))).scalars().one()
+        )
+        if caller["role"] != Role.ADMIN and event.organiser_id != caller["sub"]:
+            raise ApiError.forbidden("This ticket belongs to another organiser's event.")
+
+        if booking.status != BookingStatus.CONFIRMED:
+            raise ApiError.conflict("TICKET_NOT_VALID", "This booking was cancelled. Do not admit.")
+        if show.status is ShowStatus.CANCELLED:
+            raise ApiError.conflict("SHOW_CANCELLED", "This show has been cancelled.")
+
+        if booking.checked_in_at is not None:
+            # The whole point of the milestone: say WHEN, so the door can tell a
+            # duplicate from a mistake.
+            raise ApiError.conflict(
+                "ALREADY_CHECKED_IN",
+                f"Already admitted at {booking.checked_in_at.strftime('%H:%M')}.",
+            )
+
+        booking.checked_in_at = utcnow()
+
+    return await verify_ticket(qr_token), True

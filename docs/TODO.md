@@ -286,12 +286,13 @@ Specs: [venue capabilities and booking flow](specs/2026-08-23-venue-capabilities
 - [x] Cancel a show: fan-out cancellation, notify every customer, close waitlists
 - [x] Organiser cancels their own; admin cancels anything
 
-### Milestone 3 — evaluation criteria (highest grade impact, do first if time is short)
+### Milestone 3 — evaluation criteria ✅ DONE (2026-08-24)
 
-- [ ] **Concurrency Lab** — an in-app page firing 50 parallel holds at one seat,
-      rendering the result live. Turns the strongest claim into a demonstration
-- [ ] **Check-in + scanner** — `checkedInAt`; a second scan says "already admitted
-      at 19:42". Today a QR verifies infinitely, which is a real gap
+- [x] **Concurrency Lab** (2026-08-24) — `POST /lab/race` fires N concurrent
+      holds at one seat through the real `hold_seats()`, tallies the outcome and
+      releases the winner. Admin-only page at `/admin/lab`
+- [x] **Check-in + scanner** (2026-08-24) — `checkedInAt`; a second scan is
+      refused with the admission time. The read stays public, the write does not
 - [x] **OpenAPI spec + browsable docs** — free from FastAPI. 27 paths at
       `/openapi.json`, Swagger UI at `/docs`. This was going to be generated from
       the Zod schemas by hand; the port made it fall out of Pydantic instead.

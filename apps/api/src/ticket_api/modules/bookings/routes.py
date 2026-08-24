@@ -2,12 +2,13 @@ from __future__ import annotations
 
 from fastapi import APIRouter, status
 
-from ...deps import CurrentUser
+from ...deps import CurrentUser, RequireOrganiser
 from . import service
 from .schemas import (
     BookingListResult,
     BookingResult,
     CancelResult,
+    CheckInResult,
     CreateBookingInput,
     VerifyResult,
 )
@@ -42,3 +43,9 @@ async def cancel_booking(booking_id: str, user: CurrentUser) -> CancelResult:
 @verify_router.get("/{qr_token}", response_model=VerifyResult)
 async def verify_ticket(qr_token: str) -> VerifyResult:
     return VerifyResult(ticket=await service.verify_ticket(qr_token))
+
+
+@verify_router.post("/{qr_token}/check-in", response_model=CheckInResult)
+async def check_in(qr_token: str, caller: RequireOrganiser) -> CheckInResult:
+    ticket, admitted = await service.check_in(qr_token, caller)
+    return CheckInResult(ticket=ticket, admitted=admitted)

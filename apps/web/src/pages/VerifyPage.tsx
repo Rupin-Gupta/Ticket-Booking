@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../lib/api.js';
+import { messageFor, useAuth } from '../auth/AuthContext.js';
 import { useAsync } from '../lib/useAsync.js';
 import { formatShowDate, formatShowTime } from '../lib/format.js';
 import { AlertIcon, CheckIcon } from '../components/icons.js';
-import { Card, Skeleton } from '../components/ui.js';
+import { Alert, Button, Card, Skeleton } from '../components/ui.js';
 import './ticket.css';
 
 type Ticket = {
@@ -14,6 +16,7 @@ type Ticket = {
   venue: string;
   startsAt: string;
   seats: string[];
+  checkedInAt: string | null;
 };
 
 /**
@@ -25,10 +28,31 @@ type Ticket = {
  */
 export function VerifyPage() {
   const { token } = useParams<{ token: string }>();
-  const { data, error, loading } = useAsync(
+  const { user } = useAuth();
+  const { data, error, loading, reload } = useAsync(
     () => api.get<{ ticket: Ticket }>(`/api/v1/verify/${token}`),
     [token],
   );
+  const [admitError, setAdmitError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  // Reading a ticket is public; admitting one is not. Door staff sign in, so a
+  // photographed QR cannot be burned by a stranger before its owner arrives.
+  const canAdmit = user?.role === 'ORGANISER' || user?.role === 'ADMIN';
+
+  async function admit() {
+    setAdmitError(null);
+    setBusy(true);
+    try {
+      await api.post(`/api/v1/verify/${token}/check-in`, {});
+      reload();
+    } catch (err) {
+      // "Already admitted at 19:42" arrives here, and is the whole point.
+      setAdmitError(messageFor(err));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   if (loading) return <Skeleton count={1} height={260} />;
 
@@ -44,14 +68,37 @@ export function VerifyPage() {
   }
 
   const t = data.ticket;
+  const used = t.checkedInAt !== null;
+  // A ticket already through the door is not a valid one to admit again, and
+  // the door needs that as the headline rather than as small print.
+  const verdict = !t.valid ? 'bad' : used ? 'used' : 'good';
 
   return (
-    <Card className={`verify ${t.valid ? 'verify--good' : 'verify--bad'}`}>
-      {t.valid ? <CheckIcon size={40} /> : <AlertIcon size={40} />}
-      <h1 className="verify__verdict">{t.valid ? 'Valid ticket' : 'Cancelled'}</h1>
+    <Card className={`verify verify--${verdict === 'good' ? 'good' : 'bad'}`}>
+      {verdict === 'good' ? <CheckIcon size={40} /> : <AlertIcon size={40} />}
+      <h1 className="verify__verdict">
+        {verdict === 'good'
+          ? 'Valid ticket'
+          : verdict === 'used'
+            ? 'Already admitted'
+            : 'Cancelled'}
+      </h1>
       <p className="verify__detail">
-        {t.valid ? 'Admit the holder.' : 'This booking was cancelled. Do not admit.'}
+        {verdict === 'good'
+          ? 'Admit the holder.'
+          : verdict === 'used'
+            ? `Admitted at ${formatShowTime(t.checkedInAt as string)}. Do not admit again.`
+            : 'This booking was cancelled. Do not admit.'}
       </p>
+
+      {canAdmit && t.valid && !used && (
+        <>
+          {admitError && <Alert>{admitError}</Alert>}
+          <Button variant="cta" full loading={busy} onClick={admit}>
+            Admit
+          </Button>
+        </>
+      )}
 
       <dl className="verify__facts">
         <div>

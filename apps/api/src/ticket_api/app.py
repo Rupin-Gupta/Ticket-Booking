@@ -24,6 +24,7 @@ from .modules.bookings.routes import router as booking_router
 from .modules.bookings.routes import verify_router
 from .modules.events.routes import event_router
 from .modules.events.routes import show_router as event_show_router
+from .modules.lab.routes import router as lab_router
 from .modules.organiser.routes import router as organiser_router
 from .modules.seats.routes import hold_router
 from .modules.seats.routes import show_router as seat_show_router
@@ -180,6 +181,7 @@ def create_app() -> FastAPI:
     app.include_router(booking_router, prefix="/api/v1")
     app.include_router(verify_router, prefix="/api/v1")
     app.include_router(organiser_router, prefix="/api/v1")
+    app.include_router(lab_router, prefix="/api/v1")
 
     @app.api_route(
         "/{path:path}",

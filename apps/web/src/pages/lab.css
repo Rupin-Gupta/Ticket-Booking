@@ -1,0 +1,63 @@
+.lab {
+  display: grid;
+  gap: var(--space-4);
+  max-width: 44rem;
+}
+
+.lab__title {
+  font-family: var(--font-brand);
+  font-weight: 400;
+  font-size: var(--text-2xl);
+}
+
+.lab__sub {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.lab__result {
+  display: grid;
+  gap: var(--space-3);
+  border-left: 3px solid var(--border-strong);
+}
+.lab__result--pass {
+  border-left-color: var(--seat-free);
+}
+.lab__result--fail {
+  border-left-color: var(--danger, #b91c1c);
+}
+
+.lab__verdict {
+  font-size: var(--text-lg);
+}
+
+/* Numbers are the point of this page, so they get the size and the tabular
+   figures rather than the prose around them. */
+.lab__tally {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+  gap: var(--space-3);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.lab__tally li {
+  display: grid;
+  gap: 2px;
+}
+.lab__tally strong {
+  font-size: var(--text-xl);
+  font-variant-numeric: tabular-nums;
+}
+.lab__tally span {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+.lab__bad strong {
+  color: var(--danger, #b91c1c);
+}
+
+.lab__note {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
