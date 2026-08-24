@@ -4,7 +4,7 @@ import { api } from '../lib/api.js';
 import { messageFor } from '../auth/AuthContext.js';
 import { useAsync } from '../lib/useAsync.js';
 import { formatPrice } from '../lib/format.js';
-import type { OwnEvent, VenueSummary } from '../lib/types.js';
+import type { OwnEvent, VenueSection, VenueSummary } from '../lib/types.js';
 import {
   Alert,
   Button,
@@ -164,12 +164,12 @@ function CreateEvent({ venues, onCreated }: { venues: VenueSummary[]; onCreated:
 
 function EventEditor({ event, onChanged }: { event: OwnEvent; onChanged: () => void }) {
   const sections = useAsync(
-    () => api.get<{ sections: string[] }>(`/api/v1/venues/${event.venue.id}/sections`),
+    () => api.get<{ sections: VenueSection[] }>(`/api/v1/venues/${event.venue.id}/sections`),
     [event.venue.id],
   );
 
   const priced = new Set(event.categories.flatMap((c) => c.sections));
-  const unpriced = (sections.data?.sections ?? []).filter((s) => !priced.has(s));
+  const unpriced = (sections.data?.sections ?? []).filter((s) => !priced.has(s.name));
 
   return (
     <div className="stack">
@@ -208,8 +208,8 @@ function EventEditor({ event, onChanged }: { event: OwnEvent; onChanged: () => v
             here beats letting someone hit the 400. */}
         {unpriced.length > 0 && (
           <p className="manage__warn">
-            Still unpriced: <strong>{unpriced.join(', ')}</strong>. A show cannot be created until
-            every section has a price.
+            Still unpriced: <strong>{unpriced.map((s) => s.name).join(', ')}</strong>. A show
+            cannot be created until every section has a price.
           </p>
         )}
 
@@ -230,7 +230,7 @@ function AddCategory({
   onAdded,
 }: {
   eventId: string;
-  available: string[];
+  available: VenueSection[];
   onAdded: () => void;
 }) {
   const [name, setName] = useState('');
@@ -290,13 +290,16 @@ function AddCategory({
       <fieldset className="checks">
         <legend className="field__label">Sections this covers</legend>
         {available.map((section) => (
-          <label key={section} className="check">
+          <label key={section.name} className="check">
             <input
               type="checkbox"
-              checked={chosen.includes(section)}
-              onChange={() => toggle(section)}
+              checked={chosen.includes(section.name)}
+              onChange={() => toggle(section.name)}
             />
-            {section}
+            {section.name}
+            {/* The seat count is the point: pricing a section blind is how an
+                organiser finds out at show-creation time that it was 400 seats. */}
+            <small>{section.seatCount} seats</small>
           </label>
         ))}
       </fieldset>

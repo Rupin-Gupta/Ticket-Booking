@@ -21,6 +21,7 @@ from ...models import (
     utcnow,
 )
 from ...security import TokenPayload
+from ..venues.scheduling import assert_venue_free, occupied_window
 from .schemas import (
     CategoryOut,
     CreateCategoryInput,
@@ -184,9 +185,19 @@ async def get_event(event_id: str) -> EventOut:
 
 async def create_event(data: CreateEventInput, caller: TokenPayload) -> EventWritten:
     async with Session() as session:
-        venue = await session.scalar(select(Venue.id).where(Venue.id == data.venueId))
+        venue = (
+            (await session.execute(select(Venue).where(Venue.id == data.venueId))).scalars().first()
+        )
         if venue is None:
             raise ApiError.bad_request("VENUE_NOT_FOUND", "No venue with that id.")
+
+        # A venue is admin-owned infrastructure; an organiser books it, and
+        # cannot put a film in a room built for concerts.
+        if data.type not in venue.allowed_event_types:
+            allowed = " and ".join(t.value for t in venue.allowed_event_types)
+            raise ApiError.bad_request(
+                "EVENT_TYPE_NOT_ALLOWED", f"This venue hosts {allowed} only."
+            )
 
         event = Event(
             venue_id=data.venueId,
@@ -352,12 +363,36 @@ async def create_category(
 async def create_show(event_id: str, data: CreateShowInput, caller: TokenPayload) -> ShowCreated:
     async with Session() as session:
         event = await _assert_owns(session, event_id, caller)
-        venue_id = event.venue_id
+        venue = (
+            (await session.execute(select(Venue).where(Venue.id == event.venue_id))).scalars().one()
+        )
+        venue_id = venue.id
+        turnaround = venue.turnaround_minutes
+
+    ends_at, occupies_until = occupied_window(
+        starts_at=data.startsAt,
+        duration_minutes=data.durationMinutes,
+        turnaround_minutes=turnaround,
+    )
 
     # One transaction: a show whose seats failed to generate is worse than no
     # show at all — it renders as a bookable date with an empty seat map.
     async with transaction() as session:
-        show = Show(event_id=event_id, starts_at=data.startsAt)
+        await assert_venue_free(
+            session,
+            venue_id=venue_id,
+            starts_at=data.startsAt,
+            occupies_until=occupies_until,
+        )
+
+        show = Show(
+            event_id=event_id,
+            venue_id=venue_id,
+            starts_at=data.startsAt,
+            duration_minutes=data.durationMinutes,
+            ends_at=ends_at,
+            occupies_until=occupies_until,
+        )
         session.add(show)
         await session.flush()
 

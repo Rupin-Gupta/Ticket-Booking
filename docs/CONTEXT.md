@@ -10,13 +10,13 @@ an entry here costs the next one twenty minutes of rediscovery.
 
 ## Current state
 
-|                 |                                                                                                                             |
-| --------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| **Phase**       | **Python port — COMPLETE.** The API is FastAPI; `apps/api` no longer contains TypeScript.                                   |
-| **Runnable?**   | Yes, locally. 120 tests green. The hosted deployment is intentionally offline for the duration of the port.                 |
-| **Repo**        | Local git. Remote `https://github.com/Rupin-Gupta/Ticket-Booking.git` — **not pushed, the owner pushes**                    |
-| **Blocked on**  | Nothing technical. Redeploying needs the owner to push and re-import the Render blueprint (runtime changed node -> python). |
-| **Next action** | Redeploy and re-run `scripts/verify_production.py`. Then re-plan milestone 0/1 against Python — the old plan is superseded. |
+|                 |                                                                                                                                                   |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Phase**       | **Milestone 1 complete** — venue capabilities, scheduling, three-page flow. Built on the finished Python port.                                    |
+| **Runnable?**   | Yes, locally. 169 tests green. The hosted deployment is intentionally offline for the duration of the port.                                       |
+| **Repo**        | Local git, branch `milestone-1-venue-capabilities`. Remote `https://github.com/Rupin-Gupta/Ticket-Booking.git` — **not pushed, the owner pushes** |
+| **Blocked on**  | Nothing technical. Redeploying needs the owner to push and re-import the Render blueprint (runtime changed node -> python).                       |
+| **Next action** | Milestone 2: show cancellation. Then redeploy and re-run `scripts/verify_production.py`.                                                          |
 
 **Everything below this line predates the port.** It is kept because the
 reasoning still holds — the locking discipline, the waitlist ordering, the
@@ -31,6 +31,47 @@ Demo logins (`cd apps/api && ./.venv/bin/python -m ticket_api.seed`), all
 Tests need the throwaway database first — `npm run test:db:up`, then
 `npm run db:deploy:test`, then `npm test`. They **refuse** to run against the
 production database rather than falling back to it.
+
+---
+
+## 2026-08-24 — Session 14: Milestone 1, venue capabilities and the booking flow
+
+Ten tasks, each implemented and then reviewed against its brief before the next
+one started. 130 tests to 169. All of it on `milestone-1-venue-capabilities`, so
+the login fix sitting on `main` stays independently deployable.
+
+What was built: seat geometry extracted as a pure module; `Venue.stageLayout`,
+`allowedEventTypes` and `turnaroundMinutes`; radial seat generation for
+centre-stage venues; an event-type gate; `Show.venueId` / `durationMinutes` /
+`endsAt` / `occupiesUntil` / `status` with a backfill; the double-booking
+constraint; the two-clock TTL; section seat counts in the pricing UI; and the
+three-page booking flow. ADRs 031-033.
+
+Three defects in the plan, each caught by review rather than by writing it:
+
+- `assert ... == 0 or True` — passes unconditionally. Dead test code.
+- `sa.TIMESTAMP(precision=3)` — core SQLAlchemy has no `precision`; needs the
+  postgresql dialect type.
+- **A stale delayed broadcast.** Release scheduled a fixed `AVAILABLE` message
+  for T+15s. A customer who extended inside that window had every viewer told
+  their seat was free. Deterministic, not a race. Fixed by making the callback
+  re-read status rather than by cancelling timers — a timer registry is new
+  mutable state that leaks the moment a cancel path is missed.
+
+And one the implementers found: `conftest.make_show` seeded its show at
+`utcnow()+30d`, i.e. at the current **time of day**, so the scheduling tests
+(which book fixed hours) collided with the fixture's own show for a few hours
+each afternoon. Reproduced at 16:08 UTC, fixed at the fixture by pinning the
+hour, then proven deterministic across nine hours of the day. Pinning fixes the
+class of flake; moving the two tests would have fixed the instance.
+
+Worth keeping: in the empty-slot race, `FOR UPDATE` locks nothing — there are no
+rows yet — so the exclusion constraint alone picks the winner. It is not
+redundant with the app-level check.
+
+Not done in a browser: the three-page flow was typechecked and built, never
+click-tested. Request timing, the countdown and the fifteen-second window in
+practice still want a manual walk-through.
 
 ---
 

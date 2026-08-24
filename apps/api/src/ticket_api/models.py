@@ -95,6 +95,16 @@ class EventType(enum.StrEnum):
     CONCERT = "CONCERT"
 
 
+class StageLayout(enum.StrEnum):
+    END_STAGE = "END_STAGE"  # audience faces one way, like a cinema
+    CENTRE_STAGE = "CENTRE_STAGE"  # in the round, audience surrounds the stage
+
+
+class ShowStatus(enum.StrEnum):
+    SCHEDULED = "SCHEDULED"
+    CANCELLED = "CANCELLED"
+
+
 class SeatStatus(enum.StrEnum):
     AVAILABLE = "AVAILABLE"
     HELD = "HELD"
@@ -154,6 +164,21 @@ class Venue(Base):
     name: Mapped[str] = mapped_column(Text)
     address: Mapped[str] = mapped_column(Text)
 
+    #: Admin-owned capabilities. An organiser books a venue; it does not book them.
+    stage_layout: Mapped[StageLayout] = mapped_column(
+        "stageLayout", pg_enum(StageLayout, "StageLayout"), default=StageLayout.END_STAGE
+    )
+    #: Which event types may be scheduled here. A CENTRE_STAGE venue may not
+    #: allow MOVIE — nobody projects a film in the round.
+    allowed_event_types: Mapped[list[EventType]] = mapped_column(
+        "allowedEventTypes",
+        ARRAY(pg_enum(EventType, "EventType")),
+        default=lambda: [EventType.MOVIE, EventType.CONCERT],
+    )
+    #: Minutes the room stays unavailable after a show ends, for clearing and
+    #: resetting. A stadium needs longer than a screening room.
+    turnaround_minutes: Mapped[int] = mapped_column("turnaroundMinutes", Integer, default=15)
+
     seats: Mapped[list[Seat]] = relationship(back_populates="venue")
     events: Mapped[list[Event]] = relationship(back_populates="venue")
 
@@ -211,10 +236,28 @@ class SeatCategory(Base):
 
 class Show(Base):
     __tablename__ = "Show"
+    __table_args__ = (Index("Show_venueId_startsAt_idx", "venueId", "startsAt"),)
 
     id: Mapped[str] = mapped_column(Text, primary_key=True, default=new_id)
     event_id: Mapped[str] = mapped_column("eventId", Text, ForeignKey("Event.id"))
+
+    #: Denormalised from event.venue so the venue-overlap exclusion constraint —
+    #: which can only span one table — has something to key on. Safe because
+    #: Event.venueId is immutable: moving an event would orphan every ShowSeat
+    #: generated against the old venue's seats.
+    venue_id: Mapped[str] = mapped_column("venueId", Text)
+
     starts_at: Mapped[datetime] = mapped_column("startsAt", ts())
+    #: Supplied by the organiser; there is no sensible default for "how long is
+    #: this show".
+    duration_minutes: Mapped[int] = mapped_column("durationMinutes", Integer)
+    ends_at: Mapped[datetime] = mapped_column("endsAt", ts())
+    #: endsAt plus the venue's turnaround. This, not endsAt, is what blocks the
+    #: room for another organiser.
+    occupies_until: Mapped[datetime] = mapped_column("occupiesUntil", ts())
+    status: Mapped[ShowStatus] = mapped_column(
+        pg_enum(ShowStatus, "ShowStatus"), default=ShowStatus.SCHEDULED
+    )
 
     event: Mapped[Event] = relationship(back_populates="shows")
     show_seats: Mapped[list[ShowSeat]] = relationship(back_populates="show")
@@ -338,6 +381,8 @@ __all__ = [
     "SeatStatus",
     "Show",
     "ShowSeat",
+    "ShowStatus",
+    "StageLayout",
     "User",
     "Venue",
     "WaitlistEntry",

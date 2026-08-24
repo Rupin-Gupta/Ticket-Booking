@@ -1,0 +1,86 @@
+.checkout {
+  display: grid;
+  gap: var(--space-4);
+  max-width: 30rem;
+  margin: 0 auto;
+}
+
+.checkout__card {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-5);
+}
+
+.checkout__title {
+  font-family: var(--font-brand);
+  font-weight: 400;
+  font-size: var(--text-xl);
+}
+
+.checkout__meta,
+.checkout__note,
+.checkout__timer {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.checkout__seats {
+  display: grid;
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0;
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.checkout__seats li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.checkout__total {
+  display: flex;
+  justify-content: space-between;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Progress. Numbers come from a counter so the markup stays a plain list and the
+   current step is announced by aria-current rather than by colour. */
+.steps {
+  display: flex;
+  gap: var(--space-4);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  counter-reset: step;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+.steps li {
+  counter-increment: step;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.steps li::before {
+  content: counter(step);
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  font-variant-numeric: tabular-nums;
+}
+.steps li[aria-current='step'] {
+  color: var(--text);
+  font-weight: 600;
+}
+.steps li[aria-current='step']::before {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: var(--brand-ink);
+}

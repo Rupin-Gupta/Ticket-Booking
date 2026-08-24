@@ -39,6 +39,7 @@ from ticket_api.models import (  # noqa: E402
     Venue,
     utcnow,
 )
+from ticket_api.modules.venues.scheduling import occupied_window  # noqa: E402
 from ticket_api.security import hash_password, sign_access_token  # noqa: E402
 
 # Order matters: children before parents, or the foreign keys refuse.
@@ -199,7 +200,29 @@ def make_show() -> Callable[..., object]:
             category = SeatCategory(
                 event_id=event.id, name=section, price=price, sections=[section]
             )
-            show = Show(event_id=event.id, starts_at=utcnow() + timedelta(days=30))
+            # Pinned to a fixed early-morning hour, not whatever time of day the
+            # suite happens to run. An unpinned wall-clock time here made the
+            # venue-scheduling tests fail for a few hours every afternoon,
+            # because this fixture's own background show collided with the
+            # fixed hours those tests explicitly book (18:00-21:00). 09:00, with
+            # this show's 120-minute duration and 15-minute turnaround, occupies
+            # only until 11:15 — comfortably clear of that band.
+            starts_at = (utcnow() + timedelta(days=30)).replace(
+                hour=9, minute=0, second=0, microsecond=0
+            )
+            ends_at, occupies_until = occupied_window(
+                starts_at=starts_at,
+                duration_minutes=120,
+                turnaround_minutes=venue.turnaround_minutes,
+            )
+            show = Show(
+                event_id=event.id,
+                venue_id=venue.id,
+                starts_at=starts_at,
+                duration_minutes=120,
+                ends_at=ends_at,
+                occupies_until=occupies_until,
+            )
             session.add_all([category, show])
             await session.flush()
 

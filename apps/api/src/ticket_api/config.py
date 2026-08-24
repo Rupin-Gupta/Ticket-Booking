@@ -73,7 +73,12 @@ class Settings(BaseSettings):
 
     # --- Seat hold / waitlist tuning. The brief calls the hold TTL
     # "configurable"; tests also need it at 2s without waiting ten minutes.
-    HOLD_TTL_SECONDS: int = 600
+    # Five minutes. Long enough to fill in details without rushing; short enough
+    # that an abandoned checkout does not hold a seat all afternoon.
+    HOLD_TTL_SECONDS: int = 300
+    # How long seats linger after an explicit "back". Not zero, so bouncing back
+    # and forward does not cost a customer their seats to somebody faster.
+    RELEASE_GRACE_SECONDS: int = 15
     OFFER_TTL_SECONDS: int = 600
     SWEEPER_INTERVAL_MS: int = 10_000
     MAX_SEATS_PER_HOLD: int = 6
