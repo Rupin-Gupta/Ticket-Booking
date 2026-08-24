@@ -85,7 +85,9 @@ export function CheckoutPage() {
   }
 
   if (show.loading || seats.loading) return <Skeleton count={1} height={320} />;
-  if (show.error) return <Alert>{show.error}</Alert>;
+  // Both fetches matter. Without the seat list there is nothing to check out —
+  // rendering the page anyway shows a £0 basket with a live Confirm button.
+  if (show.error || seats.error) return <Alert>{show.error ?? seats.error}</Alert>;
   if (!show.data) return null;
 
   const detail = show.data.show;
