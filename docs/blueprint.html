@@ -1018,7 +1018,7 @@ if (seat.status === 'AVAILABLE') {
       <li><span>09</span><div>Broadcast after commit, never inside the transaction.</div></li>
       <li><span>10</span><div><code>DATABASE_URL</code> is Supabase's transaction pooler on <code>:6543</code> with <code>?pgbouncer=true</code>; <code>DIRECT_URL</code> is the session pooler on <code>:5432</code>, migrations only. The third string, <code>db.&lt;ref&gt;.supabase.co</code>, is IPv6-only — never use it.</div></li>
       <li><span>11</span><div>A free Supabase project pauses after 7 days with no queries, and restoring it is manual. The daily <code>/health</code> ping is load-bearing, not a nicety.</div></li>
-      <li><span>12</span><div>Claude commits; only the repo owner pushes.</div></li>
+      <li><span>12</span><div>Work is committed locally; only the repo owner pushes.</div></li>
     </ol>
   </section>
 
@@ -1030,7 +1030,7 @@ if (seat.status === 'AVAILABLE') {
     </div>
 
     <div class="cards">
-      <div class="card"><h3>CLAUDE.md</h3><p>Condensed load-bearing memory: stack, the non-negotiable rules, the authoritative Prisma schema. Read first, every session.</p></div>
+      <div class="card"><h3>docs/CONVENTIONS.md</h3><p>Condensed load-bearing summary: stack, the non-negotiable rules, the authoritative schema. Read first.</p></div>
       <div class="card"><h3>docs/ARCHITECTURE.md</h3><p>The mechanisms in full — lifecycle, locking, waitlist, realtime, and the limits accepted on purpose.</p></div>
       <div class="card"><h3>docs/CONTEXT.md</h3><p>Rolling session journal. Top entry says exactly where the project stands and what is next.</p></div>
       <div class="card"><h3>docs/DECISIONS.md</h3><p>ADR log. What was chosen, what it beat, why. Appended to, never rewritten.</p></div>

@@ -10,7 +10,7 @@ dependencies = [
   # [asyncio] pulls greenlet, which SQLAlchemy 2.0 made an optional extra.
   # Without it create_async_engine fails at import with a bare ModuleNotFoundError.
   "sqlalchemy[asyncio]>=2.0.36",
-  # psycopg3, NOT asyncpg. See RULE 16 in CLAUDE.md — asyncpg leaks prepared
+  # psycopg3, NOT asyncpg. See RULE 16 in docs/CONVENTIONS.md — asyncpg leaks prepared
   # statements through Supabase's transaction pooler under burst load.
   "psycopg[binary,pool]>=3.2",
   "alembic>=1.14",

@@ -10,7 +10,7 @@ Log an incident whenever a bug takes more than five minutes.
 
 ## Debugging method
 
-Follow `superpowers:systematic-debugging` for anything non-trivial:
+Follow this for anything non-trivial:
 
 1. Reproduce it deterministically before changing a single line.
 2. Read the actual error and the actual stack. Do not pattern-match to a guess.

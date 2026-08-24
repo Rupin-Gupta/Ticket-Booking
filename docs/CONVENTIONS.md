@@ -1,12 +1,12 @@
-# Ticket Booking System — Project Memory
+# Ticket Booking System — Conventions
 
-This file is project context for Claude Code. Keep it at the repo root. Update
-the "Current phase" line at the bottom as you progress — every new session
-should be able to read this file and know exactly where the project stands.
+The condensed, load-bearing version of this project's decisions: the stack, the
+rules that must not be broken, and the authoritative schema. Keep the "Current
+phase" section at the bottom current — it is how anyone picking the project up
+learns where it stands.
 
-Full rationale for every decision below lives in the companion architecture
-doc ("Ticket Booking Blueprint") — this file is the condensed, load-bearing
-version meant to travel with the code.
+Full rationale for every decision lives in `ARCHITECTURE.md` and
+`DECISIONS.md`; this file is the summary meant to travel with the code.
 
 ## What this is
 
@@ -387,8 +387,7 @@ ticket-booking-system/
 ## Build phases
 
 Work through these in order — don't jump ahead. Full detail (task-by-task
-checklists, per-phase Claude Code tips) is in the architecture doc; this is
-the index.
+checklists) is in the architecture doc; this is the index.
 
 0. **Foundations** — monorepo, TS/lint config, Supabase + Prisma init, Express +
    Vite skeletons, `.env.example`, first commit.

@@ -6,9 +6,9 @@
 
 # Architecture
 
-How the system is put together and why. `CLAUDE.md` holds the condensed rules
+How the system is put together and why. `docs/CONVENTIONS.md` holds the condensed rules
 and the authoritative schema; this file holds the reasoning and the
-mechanisms. When the two disagree, `CLAUDE.md` wins and this file gets fixed.
+mechanisms. When the two disagree, `docs/CONVENTIONS.md` wins and this file gets fixed.
 
 ---
 

@@ -209,14 +209,14 @@ most likely reason.
 
 ---
 
-## ADR-012 — `Show.bookings` added to the schema in `CLAUDE.md`
+## ADR-012 — `Show.bookings` added to the schema in `docs/CONVENTIONS.md`
 
 **Accepted** · 2026-08-22
 
 `Booking` has `show Show @relation(...)`, but `Show` had no `bookings Booking[]`
 back-relation. Prisma refuses to generate a client without both sides.
 
-_Why it is logged:_ `CLAUDE.md` calls its schema authoritative, so a silent
+_Why it is logged:_ `docs/CONVENTIONS.md` calls its schema authoritative, so a silent
 divergence between it and `prisma/schema.prisma` is exactly the kind of drift
 that costs an hour later. `Booking.@@index([customerId, createdAt])` was added
 at the same time — booking history is queried by customer, newest first.
@@ -318,7 +318,7 @@ venue, and no two categories in one event may claim the same section.
 
 _The gap it fills:_ seats belong to a **venue**, price categories belong to an
 **event**. Nothing connected the two, so `instantiateShowSeats()` had no way to
-decide what a seat costs. The schema in `CLAUDE.md` did not cover this.
+decide what a seat costs. The schema in `docs/CONVENTIONS.md` did not cover this.
 
 _Alternatives:_ match `SeatCategory.name` to `Seat.section` by string equality —
 brittle, and forces a venue's physical naming onto every event's price list.

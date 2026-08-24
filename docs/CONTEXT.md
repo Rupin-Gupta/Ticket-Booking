@@ -78,7 +78,7 @@ practice still want a manual walk-through.
 ## 2026-08-23 — Session 13: TypeScript to Python
 
 The owner asked why the codebase was TypeScript when they work in Python. It was
-my call, not theirs: no project CLAUDE.md existed when the first session started,
+my call, not theirs: no project docs/CONVENTIONS.md existed when the first session started,
 I wrote one during the architecture phase, and I recorded the stack under a
 heading reading "decided — do not change without asking". They never saw a
 language decision point. Recorded in memory so it does not repeat.
@@ -673,7 +673,7 @@ auto-wakes. The owner made the call; mitigation below is what makes it safe.
 **Changed**
 
 - `apps/api/.env.example`, `prisma/schema.prisma`, `README.md`,
-  `docs/ARCHITECTURE.md` §9, `CLAUDE.md` rule 14 — all now describe the
+  `docs/ARCHITECTURE.md` §9, `docs/CONVENTIONS.md` rule 14 — all now describe the
   Supabase two-string setup and name the third string as banned.
 - `/health` now round-trips `SELECT 1` and reports `up` / `unreachable` /
   `not-configured`. This is not decoration: it is the endpoint the daily
@@ -721,7 +721,7 @@ database activity on a free project. Revisit before Phase 3.
 - `src/env.ts`: zod-validated env using Node's native `process.loadEnvFile()`
   — no dotenv dependency. Infra vars are optional at boot with a `requireEnv()`
   helper, so a fresh clone runs before any account exists.
-- Prisma schema written out from `CLAUDE.md`, with `directUrl` wired for the host.
+- Prisma schema written out from `docs/CONVENTIONS.md`, with `directUrl` wired for the host.
 - `packages/shared`: enums, `SeatView` (no `heldByUserId`, by construction),
   `ApiErrorBody`, socket event names.
 - Web: Vite + React 19 + react-router, fetch wrapper with `ApiClientError`,
@@ -737,7 +737,7 @@ standard error shape.
 
 **Found and fixed**
 
-- `CLAUDE.md`'s schema was missing `Show.bookings` — `Booking.show` has no
+- `docs/CONVENTIONS.md`'s schema was missing `Show.bookings` — `Booking.show` has no
   valid opposite side without it, and Prisma refuses to generate. Added.
 - Two real strict-mode type errors caught before they shipped: a mapped type
   needing `-?`, and `exactOptionalPropertyTypes` rejecting `body: undefined`.
@@ -765,7 +765,7 @@ middleware, seed script.
 
 **Did**
 
-- Read the brief and `CLAUDE.md`; confirmed stack and the fifteen
+- Read the brief and `docs/CONVENTIONS.md`; confirmed stack and the fifteen
   non-negotiable rules as given, no changes proposed.
 - Wrote the documentation set: `README.md`, `docs/ARCHITECTURE.md`,
   `docs/CONTEXT.md`, `docs/DECISIONS.md`, `docs/RULES.md`,

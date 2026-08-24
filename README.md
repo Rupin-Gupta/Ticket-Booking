@@ -478,4 +478,4 @@ limiter working. Clean up afterwards with `-- --cleanup`.
 | [docs/DEBUGGING.md](docs/DEBUGGING.md)       | Traps written down before they bite, plus a symptom → cause → fix log  |
 | [docs/TODO.md](docs/TODO.md)                 | Phase-by-phase checklist with a "done when" test per phase             |
 | [docs/CONTEXT.md](docs/CONTEXT.md)           | Rolling session journal                                                |
-| [CLAUDE.md](CLAUDE.md)                       | Condensed project memory and the non-negotiable rules                  |
+| [docs/CONVENTIONS.md](docs/CONVENTIONS.md)   | Condensed stack, schema and the non-negotiable rules                   |

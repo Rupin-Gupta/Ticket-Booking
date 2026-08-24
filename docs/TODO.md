@@ -9,7 +9,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 
 ## Phase 0 — Foundations
 
-- [x] `CLAUDE.md` project memory
+- [x] `docs/CONVENTIONS.md` project memory
 - [x] Docs skeleton (`README`, `ARCHITECTURE`, `CONTEXT`, `DECISIONS`, `RULES`, `DEBUGGING`, `TODO`, `API`)
 - [x] Blueprint artifact published
 - [x] `git init` + `.gitignore` + first commit
@@ -20,7 +20,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [x] Vite + React skeleton, routing, API client, dev proxy
 - [x] `packages/shared` enums + `SeatView`, with a compile-time parity check
       against the Prisma enums
-- [x] Prisma schema written from `CLAUDE.md` (+ the `Show.bookings`
+- [x] Prisma schema written from `docs/CONVENTIONS.md` (+ the `Show.bookings`
       back-relation it was missing), client generates
 - [x] `apps/api/.env.example` with every key, validated by `src/env.ts`
 - [x] Supabase project created, `DATABASE_URL` (`:6543`, `?pgbouncer=true`) +
@@ -256,8 +256,8 @@ device that never ran the project.
 
 ## Phase 10 — Beyond the brief
 
-Specs: [venue capabilities and booking flow](superpowers/specs/2026-08-23-venue-capabilities-and-booking-flow-design.md)
-· [seat signals and accessibility](superpowers/specs/2026-08-22-seat-signals-and-accessibility-design.md)
+Specs: [venue capabilities and booking flow](specs/2026-08-23-venue-capabilities-and-booking-flow-design.md)
+· [seat signals and accessibility](specs/2026-08-22-seat-signals-and-accessibility-design.md)
 · research and prior art: [FEATURE_BACKLOG.md](FEATURE_BACKLOG.md)
 
 ### Milestone 0 — prerequisite ✅ DONE (2026-08-23, via the Python port)
@@ -358,7 +358,7 @@ they all passed.
       out of the port because the frontend was out of scope and no test would
       have caught a mistake there.
 - [ ] **Milestone 0/1 must be re-planned.** The committed plan
-      (`docs/superpowers/plans/2026-08-23-venue-capabilities-and-booking-flow.md`)
+      (the Milestone 1 plan)
       is TypeScript task-by-task and is superseded. The _design_ it implements
       (venue capabilities, no double-booking, three-page flow, two-clock TTL)
       still stands — only the plan needs rewriting.
