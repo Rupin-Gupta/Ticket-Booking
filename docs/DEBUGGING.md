@@ -234,7 +234,43 @@ different. Build the object without the key rather than setting the key to
 
 ## Incidents
 
-_No incidents yet — nothing has run._
+### 2026-08-24 — Every Vercel build failed; production froze on a stale bundle
+
+**Symptom:** the Render API deployed fine and answered `/health` with
+`"database":"up"`, while every Vercel deployment from `4e65ad1` onward failed.
+The live site stayed up serving the last successful build, so nothing looked
+down — it was just months behind the API. Confirmed by fetching the live bundle
+and grepping it: still contained `Hold these seats`, had none of Milestone 1.
+That pairing is what actually broke the site — `GET /venues/:id/sections`
+returns objects to a frontend that still expects `string[]`.
+
+**Cause:** `Cannot find module @rollup/rollup-linux-x64-gnu` — npm's optional
+dependency bug ([npm/cli#4828](https://github.com/npm/cli/issues/4828)).
+`rollup` declares 27 platform-specific optional binaries; the lockfile,
+generated on an arm64 Mac, had materialised exactly one:
+`@rollup/rollup-darwin-arm64`. Same for esbuild. `npm ci` installs strictly
+what the lockfile names, so on Vercel's linux-x64 neither binary existed and
+`vite build` died at `require`. The log said it plainly — `added 126 packages`
+on Vercel against 129 locally, and those 3 were the binaries.
+
+**Fix:** regenerated the lockfile (`rm -rf node_modules package-lock.json &&
+npm install`). It now carries 25 rollup and 26 esbuild platform entries. The
+`--os`/`--cpu` flags do **not** backfill an existing lockfile — only a full
+regeneration does.
+
+**Guard:** simulate the target platform before trusting a lockfile:
+
+```bash
+npm ci --os=linux --cpu=x64 --libc=glibc --dry-run | grep rollup-linux
+```
+
+All three flags are needed — `@rollup/rollup-linux-x64-gnu` also declares
+`libc: ["glibc"]`, so `--os`/`--cpu` alone silently omits it and the check
+passes for the wrong reason.
+
+**Cost:** the diagnosis was cheap once the build log was in hand and expensive
+before it. `npm ci` and `vite build` both pass on macOS, so nothing reproduced
+locally — the failure lived entirely in the difference between two platforms.
 
 <!--
 ### YYYY-MM-DD — One-line title
