@@ -367,6 +367,10 @@ function AddShow({
   onAdded: () => void;
 }) {
   const [startsAt, setStartsAt] = useState('');
+  // Required by the API since venue scheduling landed: it decides how long the
+  // room is occupied, and there is no sane default — only the organiser knows
+  // whether this is a 95-minute film or a three-hour concert.
+  const [durationMinutes, setDurationMinutes] = useState(120);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -381,6 +385,7 @@ function AddShow({
         `/api/v1/events/${eventId}/shows`,
         {
           startsAt: new Date(startsAt).toISOString(),
+          durationMinutes,
         },
       );
       setDone(`Show created with ${res.show.seatCount} seats.`);
@@ -406,7 +411,18 @@ function AddShow({
         hint="Must be in the future."
         disabled={blocked}
       />
-      <Button type="submit" loading={busy} disabled={blocked || !startsAt}>
+      <Field
+        label="Runs for (minutes)"
+        type="number"
+        min={5}
+        max={1440}
+        required
+        value={durationMinutes}
+        onChange={(e) => setDurationMinutes(Number(e.target.value))}
+        hint="The venue is blocked for this long plus its turnaround, and no other show can use it in that window."
+        disabled={blocked}
+      />
+      <Button type="submit" loading={busy} disabled={blocked || !startsAt || durationMinutes < 5}>
         Create show and generate seats
       </Button>
     </form>

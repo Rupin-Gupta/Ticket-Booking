@@ -79,6 +79,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
+  // The API client fires this the first time a request comes back 401. Clearing
+  // the user here is what flips the guarded routes back to the login screen,
+  // rather than leaving somebody staring at a page whose every button fails.
+  useEffect(() => {
+    const onExpired = () => setUser(null);
+    window.addEventListener('auth:expired', onExpired);
+    return () => window.removeEventListener('auth:expired', onExpired);
+  }, []);
+
   const value = useMemo(
     () => ({ user, loading, login, register, logout }),
     [user, loading, login, register, logout],

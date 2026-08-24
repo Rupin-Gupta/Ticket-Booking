@@ -47,6 +47,20 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
     // Every API failure has the same shape — but a proxy or a cold start can
     // still return HTML, so never assume the body parses.
     const body = (await res.json().catch(() => null)) as ApiErrorBody | null;
+
+    // Access tokens live 15 minutes and are deliberately not refreshable, so a
+    // customer who spends a quarter of an hour choosing seats — an entirely
+    // normal thing to do — comes back to a token the server no longer accepts.
+    //
+    // Without this the app stayed "logged in" and every action failed with
+    // "Invalid or expired token." forever, with nothing offering a way out.
+    // Announce it once, centrally, and let the auth layer clear the session and
+    // ask for a fresh sign-in.
+    if (res.status === 401 && accessToken) {
+      setAccessToken(null);
+      window.dispatchEvent(new CustomEvent('auth:expired'));
+    }
+
     throw new ApiClientError(
       res.status,
       body?.error.code ?? 'UNKNOWN',
